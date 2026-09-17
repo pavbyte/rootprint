@@ -1,5 +1,6 @@
 import { goto } from '$app/navigation';
 import { page } from '$app/state';
+import { SvelteSet } from 'svelte/reactivity';
 import { toast } from 'svelte-sonner';
 import type {
 	FieldConfig,
@@ -18,7 +19,8 @@ import { fetchHistogram } from '$lib/api/histogram';
 import { loadFields } from '$lib/api/fields';
 import { getIndexConfig } from '$lib/api/indexes';
 import { getPreferences, setPreferences } from '$lib/api/preferences';
-import { buildQueryUrl } from '$lib/utils/query-params';
+import { buildQueryUrl, serialize } from '$lib/utils/query-params';
+import { foldRuns, groupConsecutiveHits, type LogListRow } from '$lib/utils/fold-hits';
 import { normalizeHit } from '$lib/utils/normalize-hit';
 import { readLastIndex, writeLastIndex, clearLastIndex } from '$lib/utils/last-index';
 import { resolveWindow } from '$lib/utils/time-range';
@@ -154,6 +156,34 @@ export class SearchStore {
 		});
 	});
 
+	#expandedFolds = new SvelteSet<string>();
+	#autoSearchSig: string | null = null;
+
+	foldEnabled = $derived(page.url.searchParams.get('fold') === '1');
+
+	// Keyed separately from expansion so toggling one fold doesn't re-key every hit.
+	#runs = $derived(
+		this.foldEnabled
+			? groupConsecutiveHits(this.logs, this.activeFields, this.fieldConfig?.timestampField)
+			: null
+	);
+
+	rows: LogListRow[] = $derived.by(() => {
+		const runs = this.#runs;
+		if (runs === null) return this.logs.map((hit) => ({ kind: 'hit' as const, hit }));
+		return foldRuns(runs, this.#expandedFolds);
+	});
+
+	setFoldEnabled(next: boolean): void {
+		const url = buildQueryUrl(page.url.searchParams, {}, next);
+		goto(url, { replaceState: true, keepFocus: true, noScroll: true });
+	}
+
+	toggleFold(id: string): void {
+		if (this.#expandedFolds.has(id)) this.#expandedFolds.delete(id);
+		else this.#expandedFolds.add(id);
+	}
+
 	#parsedQuery: () => ParsedQuery;
 	#indexes: () => IndexOption[];
 	#onFreshSearch?: () => void;
@@ -229,6 +259,8 @@ export class SearchStore {
 	navigateQuery(partial: Partial<ParsedQuery>, opts?: { push?: boolean }): void {
 		this.#searchAbort?.abort();
 		this.#histogramAbort?.abort();
+		// Re-search even when the URL is unchanged; only the fold toggle skips it.
+		this.#autoSearchSig = null;
 		const url = buildQueryUrl(page.url.searchParams, partial);
 		goto(url, { replaceState: !opts?.push, keepFocus: true, noScroll: true });
 	}
@@ -377,7 +409,11 @@ export class SearchStore {
 				this.#loadActiveFields(active);
 			}
 
-			this.#runFreshSearch();
+			const searchSig = `${active}|${serialize(this.#parsedQuery()).toString()}`;
+			if (searchSig !== this.#autoSearchSig) {
+				this.#autoSearchSig = searchSig;
+				this.#runFreshSearch();
+			}
 
 			writeLastIndex(active);
 		});
@@ -456,6 +492,7 @@ export class SearchStore {
 				this.rawHits = [...this.rawHits, ...result.rawHits];
 			} else {
 				this.rawHits = result.rawHits;
+				this.#expandedFolds.clear();
 				this.hasSearched = true;
 				this.#onFreshSearch?.();
 			}
@@ -495,6 +532,10 @@ export class SearchStore {
 	maybeLoadMore(): void {
 		if (!this.#canFetchMore()) return;
 		void this.#runSearch(true);
+	}
+
+	get loadingMore(): boolean {
+		return this.#prefetching;
 	}
 
 	get listEnd(): 'more' | 'end' | 'capped' {
@@ -652,6 +693,8 @@ export class SearchStore {
 
 	setActiveFields(next: string[]): void {
 		this.#savedFields = next;
+		// Fold ids are positional, so a column change regroups runs and invalidates them.
+		this.#expandedFolds.clear();
 		this.#savePrefs();
 	}
 

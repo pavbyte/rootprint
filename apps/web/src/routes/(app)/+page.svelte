@@ -43,7 +43,14 @@
 			: 0
 	);
 	const gridTemplate = $derived(
-		buildGridTemplate(store.activeFields, columnWidths, messageField, messageWidth, store.lineWrap)
+		buildGridTemplate(
+			store.activeFields,
+			columnWidths,
+			messageField,
+			messageWidth,
+			store.lineWrap,
+			store.foldEnabled
+		)
 	);
 
 	const CHART_STORAGE_KEY = 'rootprint:chart-collapsed';
@@ -194,17 +201,21 @@
 						</div>
 					{:else}
 						<VirtualLogList
-							logs={store.logs}
+							rows={store.rows}
 							activeFields={store.activeFields}
 							{gridTemplate}
 							fieldConfig={store.fieldConfig}
 							sortDirection={store.sortDirection}
 							{viewport}
 							lineWrap={store.lineWrap}
+							foldGutter={store.foldEnabled}
 							displayMode={store.displayMode}
 							listEnd={store.listEnd}
+							loadingMore={store.loadingMore}
 							onToggleSort={() => store.toggleSort()}
 							onRowClick={openRow}
+							onToggleFold={(id) => store.toggleFold(id)}
+							onLoadMore={() => store.maybeLoadMore()}
 						/>
 					{/if}
 				</div>
