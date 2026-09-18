@@ -1,15 +1,14 @@
 import { randomBytes } from 'node:crypto';
 import { generateId } from 'better-auth';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, gt } from 'drizzle-orm';
 
 import { INVITE_EXPIRY_HOURS } from '../constants.js';
 import type { Db } from '../lib/db.js';
 import { account, appSettings, inviteToken, user } from '../db/schema.js';
 import type { AuthInstance } from '../lib/auth.js';
-import { logger } from '../lib/logger.js';
 import { badRequest, conflict } from '../utils/http-error.js';
 import { withUniqueViolation } from '../utils/db.js';
-import { GITHUB_ALLOWED_ORGS, GOOGLE_ALLOWED_DOMAINS, parseDomains } from './settings.service.js';
+import { getGitHubAuthStatus, getGoogleAuthStatus } from './settings.service.js';
 import { userIsInAllowedOrg } from './github.service.js';
 
 export const FIRST_ADMIN_CLAIMED_KEY = 'first_admin_claimed';
@@ -123,12 +122,21 @@ export async function setupPassword(
 	token: string,
 	password: string
 ): Promise<string> {
-	const { userId } = await validateInviteToken(db, token);
+	await validateInviteToken(db, token);
 
 	const ctx = await authInstance.$context;
 	const hashedPassword = await ctx.password.hash(password);
 
-	await db.transaction(async (tx) => {
+	return await db.transaction(async (tx) => {
+		const [consumed] = await tx
+			.delete(inviteToken)
+			.where(and(eq(inviteToken.token, token), gt(inviteToken.expiresAt, new Date())))
+			.returning({ userId: inviteToken.userId });
+
+		if (!consumed) throw badRequest('Invalid invite token', 'INVITE_INVALID');
+
+		const userId = consumed.userId;
+
 		const existing = await tx
 			.select({ id: account.id })
 			.from(account)
@@ -157,61 +165,54 @@ export async function setupPassword(
 			.set({ emailVerified: true, updatedAt: new Date() })
 			.where(eq(user.id, userId));
 
-		await tx.delete(inviteToken).where(eq(inviteToken.userId, userId));
+		return userId;
 	});
-
-	return userId;
 }
 
-async function getGoogleAllowedDomains(db: Db): Promise<string[]> {
-	const rows = await db
-		.select({ value: appSettings.value })
-		.from(appSettings)
-		.where(eq(appSettings.key, GOOGLE_ALLOWED_DOMAINS))
-		.limit(1);
-	if (rows.length === 0) return [];
-	return parseDomains(rows[0]!.value);
-}
-
-async function getGitHubAllowedOrgs(db: Db): Promise<string[]> {
-	const rows = await db
-		.select({ value: appSettings.value })
-		.from(appSettings)
-		.where(eq(appSettings.key, GITHUB_ALLOWED_ORGS))
-		.limit(1);
-	if (rows.length === 0) return [];
-	return parseDomains(rows[0]!.value);
-}
-
-/**
- * Whether a Google account's email domain is currently in the allowed list.
- */
-export async function googleEmailIsAllowed(db: Db, email: string): Promise<boolean> {
-	const domains = await getGoogleAllowedDomains(db);
+function emailDomainAllowed(email: string, domains: string[]): boolean {
 	const domain = email.split('@')[1]?.toLowerCase();
 	return !!domain && domains.includes(domain);
 }
 
 /**
+ * Whether a Google account's email domain is currently in the allowed list.
+ *
+ * Fail-closed: an empty list allows nobody.
+ */
+export async function googleEmailIsAllowed(db: Db, email: string): Promise<boolean> {
+	return emailDomainAllowed(email, (await getGoogleAuthStatus(db)).allowedDomains);
+}
+
+/**
  * Whether a GitHub access token still resolves to membership in an allowed org.
- * Fail-closed: a missing token or any API error counts as "not a member".
+ * False for a missing or rejected token; throws when GitHub could not answer.
  */
 export async function githubTokenIsAllowed(
 	db: Db,
 	accessToken: string | null | undefined
 ): Promise<boolean> {
 	if (!accessToken) return false;
-	const orgs = await getGitHubAllowedOrgs(db);
-	return userIsInAllowedOrg(accessToken, orgs);
+	return userIsInAllowedOrg(accessToken, (await getGitHubAuthStatus(db)).allowedOrgs);
 }
 
 /**
- * Re-evaluate OAuth access for an existing user at login time.
+ * Re-evaluate OAuth access for an existing user.
  *
- * Returns true if the user has no governed OAuth account (e.g. a credential-only
- * admin), or if at least one linked governed provider still validates (OR
- * semantics — a user linked to both providers keeps access while either is
- * valid). Returns false only when every linked governed provider fails.
+ * OR semantics: a user linked to both providers keeps access while either one
+ * still validates. Three rules that are each easy to get wrong:
+ *
+ *  - A provider counts only while it is still *configured*. Deleting its client
+ *    id and secret must end access, not just hide the sign-in button, and the
+ *    allow-list rows are deliberately kept on delete so the domain check alone
+ *    would still pass.
+ *  - The credential-only exemption is keyed on having no governed account row at
+ *    all, not on having no valid one: keyed the other way, a user whose only
+ *    link has gone stale would fall through the exemption and be let in.
+ *  - An empty allow-list allows nobody.
+ *
+ * Throws when the answer is indeterminate (outage, rate limit, database error)
+ * rather than a definitive "not a member", so each caller picks its own policy:
+ * the login gate denies, mid-session re-validation applies a bounded grace.
  */
 export async function userRetainsOAuthAccess(db: Db, userId: string): Promise<boolean> {
 	const [row] = await db
@@ -226,21 +227,15 @@ export async function userRetainsOAuthAccess(db: Db, userId: string): Promise<bo
 
 	const hasGoogle = accounts.some((acct) => acct.providerId === 'google');
 	const github = accounts.find((acct) => acct.providerId === 'github');
-	if (!hasGoogle && !github) return true; // credential-only user — not governed by OAuth membership
+	if (!hasGoogle && !github) return true;
 
 	if (hasGoogle && row?.email) {
-		try {
-			if (await googleEmailIsAllowed(db, row.email)) return true;
-		} catch (err) {
-			logger.error({ err, userId, provider: 'google' }, 'oauth access check failed');
-		}
+		const google = await getGoogleAuthStatus(db);
+		if (google.configured && emailDomainAllowed(row.email, google.allowedDomains)) return true;
 	}
 
-	if (!github) return false;
-	try {
-		return await githubTokenIsAllowed(db, github.accessToken);
-	} catch (err) {
-		logger.error({ err, userId, provider: 'github' }, 'oauth access check failed');
-		return false;
-	}
+	if (!github?.accessToken) return false;
+	const gh = await getGitHubAuthStatus(db);
+	if (!gh.configured) return false;
+	return userIsInAllowedOrg(github.accessToken, gh.allowedOrgs);
 }

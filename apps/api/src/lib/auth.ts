@@ -13,11 +13,8 @@ import {
 	googleEmailIsAllowed,
 	userRetainsOAuthAccess
 } from '../services/auth.service.js';
-import {
-	loadGitHubAuthForBetterAuth,
-	loadGoogleAuthForBetterAuth
-} from '../services/settings.service.js';
-import type { GitHubAuthCredentials, GoogleAuthCredentials } from '../types.js';
+import { loadOAuthProviders } from '../services/settings.service.js';
+import type { OAuthCredentials } from '../types.js';
 import { db } from './db.js';
 import { logger } from './logger.js';
 
@@ -32,7 +29,14 @@ const apiKeyPluginConfig = {
 	permissions: { defaultPermissions: { logs: ['read'] } }
 } satisfies Parameters<typeof apiKey>[0];
 
-function buildAuth(secret: string, google?: GoogleAuthCredentials, github?: GitHubAuthCredentials) {
+function oauthCheckUnavailable(): APIError {
+	return new APIError('SERVICE_UNAVAILABLE', {
+		code: 'oauth_check_unavailable',
+		message: 'Could not verify OAuth access right now'
+	});
+}
+
+function buildAuth(secret: string, google?: OAuthCredentials, github?: OAuthCredentials) {
 	const trustedOrigins = [config.origin, ...(config.frontendUrl ? [config.frontendUrl] : [])];
 
 	const opts: BetterAuthOptions = {
@@ -44,6 +48,10 @@ function buildAuth(secret: string, google?: GoogleAuthCredentials, github?: GitH
 		session: { cookieCache: { enabled: true } },
 		rateLimit: { enabled: true },
 		advanced: { ipAddress: { ipAddressHeaders: ['x-rootprint-client-ip'] } },
+		// Every OAuth failure path falls back to this, so no per-flow
+		// errorCallbackURL is needed. Absolute because the API also serves the SPA
+		// at its own origin, which a relative path would strand split deployments on.
+		onAPIError: { errorURL: `${config.frontendUrl ?? config.origin}/auth/sign-in` },
 		emailAndPassword: { enabled: true, disableSignUp: true },
 		user: {
 			additionalFields: {
@@ -61,13 +69,26 @@ function buildAuth(secret: string, google?: GoogleAuthCredentials, github?: GitH
 								.where(eq(user.id, acct.userId))
 								.limit(1);
 							if (!row?.email || !(await googleEmailIsAllowed(db, row.email))) {
-								throw new APIError('FORBIDDEN', { message: 'domain_not_allowed' });
+								throw new APIError('FORBIDDEN', {
+									code: 'domain_not_allowed',
+									message: 'Email domain not allowed'
+								});
 							}
 							return;
 						}
 						if (acct.providerId === 'github') {
-							if (!(await githubTokenIsAllowed(db, acct.accessToken))) {
-								throw new APIError('FORBIDDEN', { message: 'org_not_allowed' });
+							let allowed: boolean;
+							try {
+								allowed = await githubTokenIsAllowed(db, acct.accessToken);
+							} catch (err) {
+								logger.error({ err, userId: acct.userId }, 'github org check unavailable');
+								throw oauthCheckUnavailable();
+							}
+							if (!allowed) {
+								throw new APIError('FORBIDDEN', {
+									code: 'org_not_allowed',
+									message: 'GitHub organization not allowed'
+								});
 							}
 							return;
 						}
@@ -86,7 +107,14 @@ function buildAuth(secret: string, google?: GoogleAuthCredentials, github?: GitH
 			session: {
 				create: {
 					before: async (session) => {
-						if (await userRetainsOAuthAccess(db, session.userId)) return;
+						let retained: boolean;
+						try {
+							retained = await userRetainsOAuthAccess(db, session.userId);
+						} catch (err) {
+							logger.error({ err, userId: session.userId }, 'oauth access check unavailable');
+							throw oauthCheckUnavailable();
+						}
+						if (retained) return;
 						logger.warn({ userId: session.userId }, 'oauth access blocked');
 						return false;
 					}
@@ -136,8 +164,7 @@ export async function initAuth(secret: string): Promise<void> {
 	if (holder.instance !== null) {
 		throw new Error('initAuth has already been called');
 	}
-	const google = await loadGoogleAuthForBetterAuth(db);
-	const github = await loadGitHubAuthForBetterAuth(db);
+	const [google, github] = await loadOAuthProviders(db);
 	holder.secret = secret;
 	holder.instance = buildAuth(secret, google, github);
 }
@@ -153,8 +180,7 @@ export async function reloadAuth(): Promise<void> {
 	if (holder.secret === null) {
 		throw new Error('reloadAuth called before initAuth');
 	}
-	const google = await loadGoogleAuthForBetterAuth(db);
-	const github = await loadGitHubAuthForBetterAuth(db);
+	const [google, github] = await loadOAuthProviders(db);
 	holder.instance = buildAuth(holder.secret, google, github);
 }
 
