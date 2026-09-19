@@ -4,8 +4,7 @@ import { DEP } from '$lib/api/deps';
 
 export const load: PageLoad = async ({ depends, parent }) => {
 	depends(DEP.users);
-	const { session } = await parent();
-	const users = await listUsers();
+	const [{ session }, users] = await Promise.all([parent(), listUsers()]);
 	return {
 		users,
 		currentUserId: session?.user.id

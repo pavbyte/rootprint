@@ -4,12 +4,15 @@ export const API_KEY_RANDOM_BYTES = 24;
 export const API_KEY_DISPLAY_PREFIX_LENGTH = 12;
 export const LAST_USED_THROTTLE_SECONDS = 60;
 
+// Auth
+export const USER_ADDITIONAL_FIELDS = {
+	role: { type: 'string', required: false, defaultValue: 'user', input: false },
+	lastActive: { type: 'date', required: false, returned: true }
+} as const;
+
 // Defaults
 export const INVITE_EXPIRY_HOURS = 48;
 export const LAST_ACTIVE_THROTTLE_MS = 300_000;
-
-export const OAUTH_RECHECK_MS = 300_000;
-export const OAUTH_GRACE_MS = 3_600_000;
 
 // Export
 export const EXPORT_MAX_ROWS = 10_000;

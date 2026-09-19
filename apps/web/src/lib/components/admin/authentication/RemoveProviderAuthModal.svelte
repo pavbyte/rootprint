@@ -24,7 +24,8 @@
 	{onConfirm}
 >
 	{#snippet message()}
-		Remove the saved {provider.name} OAuth credentials? Existing {provider.name}-linked accounts
-		will no longer be able to sign in until credentials are restored.
+		Remove the saved {provider.name} OAuth credentials? Linked users are signed out, though an OAuth callback
+		already in progress may still complete. {provider.name} sign-in stays unavailable until credentials
+		are restored.
 	{/snippet}
 </ConfirmModal>

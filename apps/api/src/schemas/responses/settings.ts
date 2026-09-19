@@ -19,3 +19,11 @@ export const GitHubAuthSettingsResponse = named(
 		allowedOrgs: v.array(v.string())
 	})
 );
+
+export const OidcAuthSettingsResponse = named(
+	'OidcAuthSettingsResponse',
+	v.object({
+		configured: v.boolean(),
+		issuerUrl: v.nullable(v.string())
+	})
+);

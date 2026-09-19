@@ -29,10 +29,9 @@ export const load: PageLoad = async ({ url, params, depends, parent }) => {
 	const indexes = getUserIndexes(userId, window);
 	const recent = getUserRecent(userId, window, { offset, limit: ACTIVITY_PAGE_SIZE });
 
-	const { session } = await parent();
 	try {
 		// User identity is resolved (not streamed): the header + actions menu need it.
-		const user = await getUser(userId);
+		const [{ session }, user] = await Promise.all([parent(), getUser(userId)]);
 		return {
 			window,
 			offset,
