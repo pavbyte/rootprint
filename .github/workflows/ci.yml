@@ -4,7 +4,9 @@ on:
   push:
     branches: [main, api-rewrite]
   pull_request:
-    branches: [main]
+
+permissions:
+  contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -22,7 +24,8 @@ jobs:
       - run: bun run check
       - run: bun run lint
       - run: bun run format:check
-      - run: docker compose up -d --wait db quickwit dex
+      - run: docker compose up -d --wait db quickwit
+      - run: bun --filter api test
       - run: bun --filter web build
       - run: bun --filter api build
       - run: docker build .
