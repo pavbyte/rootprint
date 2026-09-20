@@ -167,7 +167,7 @@ function buildAuth(secret: string, cfg: AuthConfig) {
 	return betterAuth(opts);
 }
 
-const OIDC_RETRY_MS = 60_000;
+const OIDC_RETRY_MS = config.oidcRetryMs;
 let oidcRetry: ReturnType<typeof setTimeout> | null = null;
 
 function clearOidcRetry(): void {
