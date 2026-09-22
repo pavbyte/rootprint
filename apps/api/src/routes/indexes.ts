@@ -369,7 +369,7 @@ export const indexesRouter = new Hono<AuthedEnv>()
 		'/:indexId/logs/histogram',
 		describe({
 			tag: 'Log explorer',
-			summary: 'Get log histogram',
+			summary: 'Get log histogram, optionally broken down by a field',
 			ok: HistogramResponse,
 			security: [{ personalBearer: [] }, { cookieAuth: [] }],
 			errors: [429]
@@ -379,9 +379,15 @@ export const indexesRouter = new Hono<AuthedEnv>()
 		withIndexConfig,
 		validator('query', HistogramQuery),
 		async (c) => {
-			const { q, startTs, endTs, interval } = c.req.valid('query');
+			const { q, startTs, endTs, interval, breakdownField } = c.req.valid('query');
 			return c.json(
-				await histogramLogs(quickwit, c.get('indexConfig'), { query: q, startTs, endTs, interval })
+				await histogramLogs(quickwit, c.get('indexConfig'), {
+					query: q,
+					startTs,
+					endTs,
+					interval,
+					breakdownField
+				})
 			);
 		}
 	)

@@ -44,6 +44,7 @@ export const HistogramQuery = v.object({
 	q: v.optional(v.string()),
 	startTs: v.optional(tsParam),
 	endTs: v.optional(tsParam),
+	breakdownField: v.optional(v.pipe(v.string(), v.trim(), fieldName)),
 	interval: v.pipe(
 		v.string(),
 		v.regex(

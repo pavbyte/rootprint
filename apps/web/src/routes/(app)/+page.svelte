@@ -140,7 +140,12 @@
 				buckets={store.histogramBuckets}
 				loading={store.histogramLoading}
 				error={store.histogramError}
+				fields={store.fields}
+				breakdownField={store.breakdownField}
+				levelField={store.fieldConfig?.levelField ?? ''}
 				bind:collapsed={chartCollapsed}
+				onBreakdownChange={(field) => store.setBreakdownField(field)}
+				onBreakdownValue={(value) => store.filterByBreakdownValue(value)}
 				onBrush={(start, end) =>
 					store.navigateQuery({ timeRange: { type: 'absolute', start, end } }, { push: true })}
 			/>

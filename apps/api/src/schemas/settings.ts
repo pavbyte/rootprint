@@ -99,3 +99,55 @@ export type OidcCredentialsInput = v.InferOutput<typeof oidcCredentialsSchema>;
 
 export const passwordSignInSchema = v.object({ enabled: v.boolean() });
 export type PasswordSignInInput = v.InferOutput<typeof passwordSignInSchema>;
+
+const ldapAttributeSchema = v.pipe(v.string(), v.trim(), v.minLength(1, 'Attribute is required'));
+
+export const ldapConfigSchema = v.pipe(
+	v.object({
+		host: v.pipe(v.string(), v.trim(), v.minLength(1, 'Host is required')),
+		port: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(65535)),
+		useSsl: v.boolean(),
+		startTls: v.boolean(),
+		sslSkipVerify: v.boolean(),
+		bindDn: v.pipe(v.string(), v.trim(), v.minLength(1, 'Bind DN is required')),
+		bindPassword: v.optional(v.string()),
+		searchFilter: v.pipe(v.string(), v.trim(), v.minLength(1, 'Search filter is required')),
+		searchBaseDns: v.pipe(
+			v.array(v.pipe(v.string(), v.trim(), v.minLength(1, 'Base DN is required'))),
+			v.minLength(1, 'At least one search base DN is required')
+		),
+		groupSearchFilter: v.optional(v.pipe(v.string(), v.trim())),
+		groupSearchBaseDns: v.optional(
+			v.array(v.pipe(v.string(), v.trim(), v.minLength(1, 'Group base DN is required')))
+		),
+		groupSearchFilterUserAttribute: v.optional(v.pipe(v.string(), v.trim())),
+		attributes: v.object({
+			name: ldapAttributeSchema,
+			surname: ldapAttributeSchema,
+			username: ldapAttributeSchema,
+			memberOf: ldapAttributeSchema,
+			email: ldapAttributeSchema
+		}),
+		groupMappings: v.pipe(
+			v.array(
+				v.object({
+					groupDn: v.pipe(v.string(), v.trim(), v.minLength(1, 'Group DN is required')),
+					role: v.picklist(['admin', 'user'])
+				})
+			),
+			v.minLength(1, 'At least one group mapping is required')
+		)
+	}),
+	v.check(
+		(input) => !(input.useSsl && input.startTls),
+		'Use SSL and StartTLS are mutually exclusive'
+	),
+	v.check((input) => input.searchFilter.includes('%s'), 'Search filter must contain %s')
+);
+export type LdapConfigInput = v.InferOutput<typeof ldapConfigSchema>;
+
+export const ldapSignInSchema = v.object({
+	username: v.pipe(v.string(), v.trim(), v.minLength(1, 'Username is required')),
+	password: v.pipe(v.string(), v.minLength(1, 'Password is required'))
+});
+export type LdapSignInInput = v.InferOutput<typeof ldapSignInSchema>;

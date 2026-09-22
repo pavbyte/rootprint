@@ -10,6 +10,7 @@ export type ViewCreateInput = {
 	sortDirection: SortDirection;
 	columns: string[] | null;
 	timeRange: TimeRange | null;
+	breakdownField: string | null;
 };
 
 export type ViewPatch = {
@@ -19,6 +20,7 @@ export type ViewPatch = {
 	sortDirection?: SortDirection;
 	columns?: string[] | null;
 	timeRange?: TimeRange | null;
+	breakdownField?: string | null;
 };
 
 export async function listViews(indexId: string): Promise<SavedView[]> {

@@ -58,6 +58,8 @@ export interface HistogramBucket {
 	/** Per-level doc counts within this bucket, keyed by raw level value. Docs with no
 	 *  level are folded into an `UNKNOWN` key. */
 	levels: Record<string, number>;
+	/** Doc counts for the selected breakdown field, keyed by raw value. */
+	breakdown: Record<string, number>;
 	/** Total hit count for the bucket (sum across levels). */
 	count: number;
 }
@@ -67,6 +69,7 @@ export interface HistogramInput {
 	query: string;
 	startTs: number;
 	endTs: number;
+	breakdownField?: string;
 }
 
 export interface HistogramResult {
@@ -101,6 +104,7 @@ export interface ParsedQuery {
 	timeRange: TimeRange;
 	sortDirection: SortDirection;
 	filters: Filter[];
+	breakdownField: string | null;
 }
 
 export interface SearchInput {

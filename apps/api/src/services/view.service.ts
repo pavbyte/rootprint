@@ -21,6 +21,7 @@ function toPublic(row: ViewRow): SavedView {
 		sortDirection: row.sortDirection,
 		columns: row.columns,
 		timeRange: row.timeRange,
+		breakdownField: row.breakdownField,
 		createdAt: row.createdAt.toISOString(),
 		updatedAt: row.updatedAt.toISOString()
 	};
@@ -46,6 +47,7 @@ export async function createView(
 		sortDirection?: SortDirection;
 		columns?: string[] | null;
 		timeRange?: TimeRange | null;
+		breakdownField?: string | null;
 	}
 ): Promise<SavedView> {
 	// Omitted optional fields fall back to the column defaults in db/schema.ts.
@@ -71,6 +73,7 @@ export async function updateOwnedView(
 		sortDirection?: SortDirection;
 		columns?: string[] | null;
 		timeRange?: TimeRange | null;
+		breakdownField?: string | null;
 	}
 ): Promise<SavedView> {
 	// Callers guarantee at least one field; drizzle's .set() drops undefined keys.

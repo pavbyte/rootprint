@@ -28,6 +28,7 @@ export const AuthProvidersResponse = named(
 		google: v.object({ enabled: v.boolean() }),
 		github: v.object({ enabled: v.boolean() }),
 		oidc: v.object({ enabled: v.boolean() }),
+		ldap: v.object({ enabled: v.boolean() }),
 		password: v.object({ enabled: v.boolean() })
 	})
 );

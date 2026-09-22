@@ -24,7 +24,8 @@
 			query,
 			timeRange: { type: 'absolute', start: startTime, end: endTime },
 			sortDirection: 'desc',
-			filters
+			filters,
+			breakdownField: null
 		});
 		void goto(`/?${params.toString()}`, {
 			replaceState: true,

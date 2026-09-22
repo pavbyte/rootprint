@@ -2,7 +2,7 @@ import type { BucketAggregationResult, QuickwitClient } from 'quickwit-js';
 import { AggregationBuilder } from 'quickwit-js';
 
 import type { SearchQueryInput } from '../schemas/search.js';
-import { FIELD_VALUES_DEFAULT } from '../constants.js';
+import { FIELD_VALUES_DEFAULT, HISTOGRAM_TERMS_SIZE } from '../constants.js';
 import { toQuickwitTimestamp } from '../lib/quickwit.js';
 import { composeQuery } from '../lib/query/compose-query.js';
 import { asBuckets, termsAgg } from '../utils/aggregations.js';
@@ -38,11 +38,23 @@ function bucketsToEntries(agg: BucketAggregationResult | undefined): FieldValueE
 		.toSorted((a, b) => b.count - a.count);
 }
 
+/** Terms buckets to a value → count map. `key_as_string` preserves filterable values. */
+function termsToCounts(agg: BucketAggregationResult | undefined): Record<string, number> {
+	const counts: Record<string, number> = {};
+	for (const bucket of asBuckets(agg)) {
+		const value = bucket.key_as_string ?? String(bucket.key);
+		if (value === '') continue;
+		counts[value] = (counts[value] ?? 0) + bucket.doc_count;
+	}
+	return counts;
+}
+
 type HistogramParams = {
 	query?: string;
 	startTs?: number;
 	endTs?: number;
 	interval: string;
+	breakdownField?: string;
 };
 
 type FieldValuesParams = {
@@ -78,11 +90,16 @@ export async function histogramLogs(
 	indexConfig: IndexConfig,
 	params: HistogramParams
 ): Promise<HistogramResponse> {
-	const { query = '*', startTs, endTs, interval } = params;
+	const { query = '*', startTs, endTs, interval, breakdownField } = params;
 	const idx = qw.index(indexConfig.indexId);
-	const histogramOptions = indexConfig.levelField
-		? { aggs: { levels: AggregationBuilder.terms(indexConfig.levelField, { size: 16 }) } }
-		: undefined;
+	const levelField = indexConfig.levelField;
+	const subAggs: Record<string, ReturnType<typeof termsAgg>> = {};
+	if (levelField) subAggs.levels = termsAgg(levelField, HISTOGRAM_TERMS_SIZE);
+	const splitsLevels = breakdownField !== undefined && breakdownField === levelField;
+	if (breakdownField !== undefined && !splitsLevels) {
+		subAggs.breakdown = termsAgg(breakdownField, HISTOGRAM_TERMS_SIZE);
+	}
+	const histogramOptions = Object.keys(subAggs).length > 0 ? { aggs: subAggs } : undefined;
 	const builder = idx
 		.query(query)
 		.limit(0)
@@ -91,21 +108,21 @@ export async function histogramLogs(
 			AggregationBuilder.dateHistogram(indexConfig.timestampField, interval, histogramOptions)
 		)
 		.timeRange(toQuickwitTimestamp(startTs), toQuickwitTimestamp(endTs));
-	const response = await idx.search(builder);
+	const response = await idx.search(builder).catch(translateQuickwitError);
 	const agg = response.aggregations?.['histogram'] as BucketAggregationResult | undefined;
 	return {
 		buckets: asBuckets(agg).map((b) => {
-			const levelsAgg = (b as { levels?: BucketAggregationResult }).levels;
-			const levels: Record<string, number> = {};
-			for (const lb of asBuckets(levelsAgg)) {
-				levels[String(lb.key)] = lb.doc_count;
-			}
+			const sub = b as { levels?: BucketAggregationResult; breakdown?: BucketAggregationResult };
+			const levels = termsToCounts(sub.levels);
+			const breakdownAgg = splitsLevels ? sub.levels : sub.breakdown;
 			return {
 				key: Number(b.key),
 				keyAsString: b.key_as_string ?? String(b.key),
 				docCount: b.doc_count,
 				levels,
-				omittedCount: levelsAgg?.sum_other_doc_count ?? 0
+				omittedCount: sub.levels?.sum_other_doc_count ?? 0,
+				breakdown: splitsLevels ? levels : termsToCounts(sub.breakdown),
+				breakdownOmittedCount: breakdownAgg?.sum_other_doc_count ?? 0
 			};
 		})
 	};

@@ -14,6 +14,7 @@ import { discoveryUrl, verifyOidcIssuer } from '../services/oidc.service.js';
 import { loadAuthConfig } from '../services/settings.service.js';
 import type { AuthConfig } from '../types.js';
 import { db } from './db.js';
+import { ldapAuth } from './ldap-auth.js';
 import { logger } from './logger.js';
 
 const apiKeyPluginConfig = {
@@ -40,6 +41,7 @@ function buildAuth(secret: string, cfg: AuthConfig) {
 		database: drizzleAdapter(db, { provider: 'pg', schema: authSchema }),
 		plugins: [
 			apiKey(apiKeyPluginConfig),
+			ldapAuth(),
 			...(oidc
 				? [
 						genericOAuth({
@@ -290,7 +292,7 @@ export type AuthInstance = AuthInstanceInternal;
 export async function authOpenAPISchema() {
 	const instance = betterAuth({
 		database: drizzleAdapter(db, { provider: 'pg', schema: authSchema }),
-		plugins: [apiKey(apiKeyPluginConfig), openAPI()],
+		plugins: [apiKey(apiKeyPluginConfig), ldapAuth(), openAPI()],
 		baseURL: config.origin,
 		secret: 'openapi-schema-generation-only',
 		emailAndPassword: { enabled: true, disableSignUp: true },

@@ -7,10 +7,14 @@ import type {
 	ExternalProviderId,
 	GitHubAuthSettings,
 	GoogleAuthSettings,
+	LdapAuthSettings,
+	LdapConfig,
 	OAuthCredentials,
 	OidcAuthSettings,
 	OidcCredentials
 } from '../types.js';
+import type { LdapConfigInput } from '../schemas/settings.js';
+import { badRequest } from '../utils/http-error.js';
 
 const GOOGLE_CLIENT_ID = 'google_client_id';
 const GOOGLE_CLIENT_SECRET = 'google_client_secret';
@@ -25,6 +29,31 @@ const OIDC_CLIENT_ID = 'oidc_client_id';
 const OIDC_CLIENT_SECRET = 'oidc_client_secret';
 
 const PASSWORD_SIGN_IN_DISABLED = 'password_sign_in_disabled';
+
+const LDAP_CONFIG = 'ldap_config';
+const LDAP_BIND_PASSWORD = 'ldap_bind_password';
+
+export const DEFAULT_LDAP_SETTINGS: Omit<LdapAuthSettings, 'configured'> = {
+	host: '',
+	port: 389,
+	useSsl: false,
+	startTls: false,
+	sslSkipVerify: false,
+	bindDn: '',
+	searchFilter: '(sAMAccountName=%s)',
+	searchBaseDns: [],
+	groupSearchFilter: '',
+	groupSearchBaseDns: [],
+	groupSearchFilterUserAttribute: '',
+	attributes: {
+		name: 'givenName',
+		surname: 'sn',
+		username: 'cn',
+		memberOf: 'memberOf',
+		email: 'mail'
+	},
+	groupMappings: []
+};
 
 const AUTH_KEYS = [
 	GOOGLE_CLIENT_ID,
@@ -221,4 +250,46 @@ export async function deleteOidcAuthCredentials(db: Db): Promise<void> {
 // recovers by deleting the `password_sign_in_disabled` row.
 export async function putPasswordSignInDisabled(db: Db, disabled: boolean): Promise<void> {
 	await putValues(db, { [PASSWORD_SIGN_IN_DISABLED]: String(disabled) });
+}
+
+function parseLdapSettings(raw: string | undefined): Omit<LdapAuthSettings, 'configured'> {
+	if (!raw) return DEFAULT_LDAP_SETTINGS;
+	try {
+		const parsed = JSON.parse(raw) as Partial<Omit<LdapAuthSettings, 'configured'>>;
+		return { ...DEFAULT_LDAP_SETTINGS, ...parsed };
+	} catch {
+		return DEFAULT_LDAP_SETTINGS;
+	}
+}
+
+export async function getLdapAuthStatus(db: Db): Promise<LdapAuthSettings> {
+	const byKey = await loadSettings(db, [LDAP_CONFIG, LDAP_BIND_PASSWORD]);
+	return {
+		configured: byKey.has(LDAP_CONFIG) && byKey.has(LDAP_BIND_PASSWORD),
+		...parseLdapSettings(byKey.get(LDAP_CONFIG))
+	};
+}
+
+export async function loadLdapConfig(db: Db): Promise<LdapConfig | undefined> {
+	const byKey = await loadSettings(db, [LDAP_CONFIG, LDAP_BIND_PASSWORD]);
+	const bindPassword = byKey.get(LDAP_BIND_PASSWORD);
+	if (!byKey.has(LDAP_CONFIG) || !bindPassword) return undefined;
+	return { ...parseLdapSettings(byKey.get(LDAP_CONFIG)), bindPassword };
+}
+
+export async function putLdapConfig(db: Db, input: LdapConfigInput): Promise<void> {
+	const current = await loadSettings(db, [LDAP_BIND_PASSWORD]);
+	const bindPassword = input.bindPassword || current.get(LDAP_BIND_PASSWORD);
+	if (!bindPassword) throw badRequest('Bind password is required', 'LDAP_BIND_PASSWORD_REQUIRED');
+	const { bindPassword: _redacted, ...ldapConfig } = input;
+	await putValues(db, {
+		[LDAP_CONFIG]: JSON.stringify(ldapConfig),
+		[LDAP_BIND_PASSWORD]: bindPassword
+	});
+}
+
+export async function deleteLdapConfig(db: Db): Promise<void> {
+	await deleteProviderCredentials(db, [LDAP_CONFIG, LDAP_BIND_PASSWORD], (tx) =>
+		revokeSessionsLinkedTo(tx, 'ldap')
+	);
 }

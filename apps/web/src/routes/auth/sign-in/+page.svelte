@@ -2,11 +2,12 @@
 	import * as v from 'valibot';
 	import { goto, invalidate } from '$app/navigation';
 	import { page } from '$app/state';
+	import { signInWithLdap } from '$lib/api/auth';
 	import { DEP } from '$lib/api/deps';
-	import { issuesToFieldErrors } from '$lib/api/errors';
+	import { ApiError, issuesToFieldErrors } from '$lib/api/errors';
 	import { authClient } from '$lib/auth-client';
 	import { safeReturnTo } from '$lib/return-to';
-	import { signInSchema } from 'api/schemas';
+	import { ldapSignInSchema, signInSchema } from 'api/schemas';
 	import GoogleIcon from '@iconify-svelte/logos/google-icon';
 	import GitHubIcon from '@iconify-svelte/logos/github-icon';
 	import { KeyRound } from 'lucide-svelte';
@@ -20,11 +21,9 @@
 	let email = $state('');
 	let password = $state('');
 	let submitting = $state(false);
-	let pendingProvider = $state<ExternalProviderId | null>(null);
-	const PROVIDERS: Record<
-		ExternalProviderId,
-		{ name: string; label: string; Icon: IconComponent }
-	> = {
+	type OAuthProviderId = Exclude<ExternalProviderId, 'ldap'>;
+	let pendingProvider = $state<OAuthProviderId | null>(null);
+	const PROVIDERS: Record<OAuthProviderId, { name: string; label: string; Icon: IconComponent }> = {
 		google: { name: 'Google', label: 'Continue with Google', Icon: GoogleIcon },
 		github: { name: 'GitHub', label: 'Continue with GitHub', Icon: GitHubIcon },
 		oidc: { name: 'your identity provider', label: 'Continue with SSO', Icon: KeyRound }
@@ -36,10 +35,12 @@
 	const busy = $derived(submitting || pendingProvider !== null);
 	const adminCreated = $derived(page.url.searchParams.get('created') === 'admin');
 	const enabledProviders = $derived(
-		(Object.keys(PROVIDERS) as ExternalProviderId[]).filter((id) => data.providers[id].enabled)
+		(Object.keys(PROVIDERS) as OAuthProviderId[]).filter((id) => data.providers[id].enabled)
 	);
 	const externalEnabled = $derived(enabledProviders.length > 0);
 	const passwordEnabled = $derived(data.providers.password.enabled);
+	const ldapEnabled = $derived(data.providers.ldap.enabled);
+	const credentialFormEnabled = $derived(passwordEnabled || ldapEnabled);
 
 	const OAUTH_ERROR_MESSAGES: Record<string, string> = {
 		domain_not_allowed: 'Your email domain is not allowed on this instance.',
@@ -71,7 +72,7 @@
 		return known ?? 'Sign-in failed. Please try again or contact an admin.';
 	});
 
-	async function signInWithProvider(provider: ExternalProviderId) {
+	async function signInWithProvider(provider: OAuthProviderId) {
 		if (busy) return;
 		pendingProvider = provider;
 		formError = null;
@@ -103,6 +104,27 @@
 		fieldErrors = {};
 		submitting = true;
 		try {
+			if (ldapEnabled) {
+				const parsed = v.safeParse(ldapSignInSchema, { username: email, password });
+				if (!parsed.success) {
+					fieldErrors = issuesToFieldErrors(parsed.issues);
+					return;
+				}
+				try {
+					await signInWithLdap(parsed.output);
+					await invalidate(DEP.session);
+					await goto(returnTo);
+					return;
+				} catch (err) {
+					const canTryLocal =
+						passwordEnabled && email.includes('@') && err instanceof ApiError && err.status === 401;
+					if (!canTryLocal) {
+						formError = err instanceof Error ? err.message : 'LDAP sign-in failed';
+						return;
+					}
+				}
+			}
+
 			const parsed = v.safeParse(signInSchema, { email, password });
 			if (!parsed.success) {
 				fieldErrors = issuesToFieldErrors(parsed.issues);
@@ -157,20 +179,22 @@
 			</button>
 		{/each}
 	</div>
-	{#if passwordEnabled}
-		<div class="divider text-muted my-6 text-xs">or sign in with email</div>
+	{#if credentialFormEnabled}
+		<div class="divider text-muted my-6 text-xs">
+			{ldapEnabled ? 'or sign in with directory or email' : 'or sign in with email'}
+		</div>
 	{/if}
 {/if}
 <p class="sr-only" role="status">
 	{pendingProvider ? `Opening ${PROVIDERS[pendingProvider].name}…` : ''}
 </p>
-{#if passwordEnabled}
+{#if credentialFormEnabled}
 	<form class="space-y-4" class:mt-6={!externalEnabled} {onsubmit} aria-busy={busy}>
 		<Field
-			label="Email"
-			type="email"
-			autocomplete="email"
-			placeholder="you@company.com"
+			label={ldapEnabled ? 'Username or email' : 'Email'}
+			type={ldapEnabled ? 'text' : 'email'}
+			autocomplete="username"
+			placeholder={ldapEnabled ? 'username or you@company.com' : 'you@company.com'}
 			bind:value={email}
 			error={fieldErrors.email}
 			required

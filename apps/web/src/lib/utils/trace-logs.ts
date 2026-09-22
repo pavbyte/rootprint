@@ -37,7 +37,8 @@ export function traceLogsHref(target: TraceLogsTarget): string {
 		query: '',
 		sortDirection: 'desc',
 		timeRange: traceLogsWindow(target),
-		filters: traceLogsFilters(target)
+		filters: traceLogsFilters(target),
+		breakdownField: null
 	});
 	return `/?${params.toString()}`;
 }

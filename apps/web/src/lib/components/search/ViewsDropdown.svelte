@@ -45,7 +45,8 @@
 			sortDirection: store.sortDirection,
 			// Empty means display preferences haven't resolved yet, not "no columns".
 			columns: opts.withColumns && store.activeFields.length > 0 ? [...store.activeFields] : null,
-			timeRange: opts.withTime ? store.timeRange : null
+			timeRange: opts.withTime ? store.timeRange : null,
+			breakdownField: store.breakdownField
 		};
 	}
 
@@ -79,7 +80,13 @@
 		// A view saved without a time range leaves the current one alone.
 		const timeRange = item.timeRange ?? store.timeRange;
 		store.navigateQuery(
-			{ query: item.query, filters: item.filters, sortDirection: item.sortDirection, timeRange },
+			{
+				query: item.query,
+				filters: item.filters,
+				sortDirection: item.sortDirection,
+				timeRange,
+				breakdownField: item.breakdownField
+			},
 			{ push: true }
 		);
 		if (item.columns !== null) store.setActiveFields([...item.columns]);
@@ -402,7 +409,7 @@
 
 			{#if !editing}
 				<p class="text-base-content/60 text-xs">
-					Saves the current query, filters, sort direction, and columns.
+					Saves the current query, filters, sort direction, columns, and chart breakdown.
 				</p>
 				<label class="text-muted flex items-center gap-1.5 text-xs">
 					<input type="checkbox" class="checkbox checkbox-xs" bind:checked={saveTime} />

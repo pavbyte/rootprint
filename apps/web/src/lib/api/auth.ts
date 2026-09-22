@@ -1,7 +1,7 @@
 import { client } from '$lib/api/client';
 import { readApiError } from '$lib/api/errors';
 import type { AuthProvidersInfo } from 'api/types';
-import type { SetupAdminInput, SetupPasswordInput } from 'api/schemas';
+import type { LdapSignInInput, SetupAdminInput, SetupPasswordInput } from 'api/schemas';
 
 export type AuthBootstrap = {
 	needsSetupAdmin: boolean;
@@ -43,4 +43,9 @@ export async function listAuthProviders(): Promise<AuthProvidersInfo> {
 	const res = await client.api.auth.providers.$get();
 	if (!res.ok) throw await readApiError(res, 'Failed to load sign-in options');
 	return res.json();
+}
+
+export async function signInWithLdap(input: LdapSignInInput): Promise<void> {
+	const res = await client.api.auth.ldap['sign-in'].$post({ json: input });
+	if (!res.ok) throw await readApiError(res, 'LDAP sign-in failed');
 }

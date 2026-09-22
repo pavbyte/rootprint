@@ -10,6 +10,7 @@
 	const google = $derived(data.google);
 	const github = $derived(data.github);
 	const oidc = $derived(data.oidc);
+	const ldap = $derived(data.ldap);
 
 	const googleStatus = $derived.by(() => {
 		if (!google.configured) return null;
@@ -24,6 +25,7 @@
 	});
 
 	const oidcStatus = $derived(oidc.issuerUrl ? `Issuer: ${new URL(oidc.issuerUrl).host}` : null);
+	const ldapStatus = $derived(ldap.configured ? `${ldap.host}:${ldap.port}` : null);
 
 	const providers = $derived([
 		{
@@ -49,6 +51,14 @@
 			configured: oidc.configured,
 			statusLine: oidcStatus,
 			editHref: '/settings/authentication/oidc'
+		},
+		{
+			id: 'ldap' as const,
+			name: 'LDAP',
+			description: 'Sign in with a directory account and map groups to roles.',
+			configured: ldap.configured,
+			statusLine: ldapStatus,
+			editHref: '/settings/authentication/ldap'
 		}
 	]);
 </script>

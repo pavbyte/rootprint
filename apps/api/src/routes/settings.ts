@@ -8,6 +8,7 @@ import { requireAdmin } from '../middleware/require-admin.js';
 import {
 	githubAllowedOrgsSchema,
 	googleAllowedDomainsSchema,
+	ldapConfigSchema,
 	oauthCredentialsSchema,
 	oidcCredentialsSchema,
 	passwordSignInSchema
@@ -15,6 +16,7 @@ import {
 import {
 	GoogleAuthSettingsResponse,
 	GitHubAuthSettingsResponse,
+	LdapAuthSettingsResponse,
 	OidcAuthSettingsResponse
 } from '../schemas/responses/settings.js';
 import { verifyOidcIssuer } from '../services/oidc.service.js';
@@ -24,14 +26,20 @@ import {
 	putGoogleAuthAllowedDomains,
 	putGoogleAuthCredentials,
 	deleteGitHubAuthCredentials,
+	deleteLdapConfig,
 	getGitHubAuthStatus,
+	getLdapAuthStatus,
+	loadLdapConfig,
 	putGitHubAuthAllowedOrgs,
 	putGitHubAuthCredentials,
+	putLdapConfig,
 	deleteOidcAuthCredentials,
 	getOidcAuthStatus,
 	putOidcAuthCredentials,
 	putPasswordSignInDisabled
 } from '../services/settings.service.js';
+import { testLdapConnection } from '../services/ldap.service.js';
+import { badRequest } from '../utils/http-error.js';
 
 // Routes are chained so Hono propagates request/response types for the RPC client.
 export const settingsRouter = new Hono<AuthedEnv>()
@@ -177,6 +185,59 @@ export const settingsRouter = new Hono<AuthedEnv>()
 		async (c) => {
 			await deleteOidcAuthCredentials(db);
 			await reloadAuth();
+			return c.body(null, 204);
+		}
+	)
+	.get(
+		'/auth/ldap',
+		describe({
+			tag: 'Auth settings',
+			summary: 'Get LDAP auth status',
+			ok: LdapAuthSettingsResponse
+		}),
+		async (c) => c.json(await getLdapAuthStatus(db))
+	)
+	.put(
+		'/auth/ldap',
+		describe({
+			tag: 'Auth settings',
+			summary: 'Save LDAP configuration',
+			rawResponses: { '204': { description: 'LDAP configuration saved' } }
+		}),
+		validator('json', ldapConfigSchema),
+		async (c) => {
+			await putLdapConfig(db, c.req.valid('json'));
+			return c.body(null, 204);
+		}
+	)
+	.delete(
+		'/auth/ldap',
+		describe({
+			tag: 'Auth settings',
+			summary: 'Remove LDAP configuration',
+			rawResponses: { '204': { description: 'LDAP configuration removed' } }
+		}),
+		async (c) => {
+			await deleteLdapConfig(db);
+			return c.body(null, 204);
+		}
+	)
+	.post(
+		'/auth/ldap/test',
+		describe({
+			tag: 'Auth settings',
+			summary: 'Test LDAP search bind',
+			rawResponses: { '204': { description: 'LDAP connection succeeded' } }
+		}),
+		validator('json', ldapConfigSchema),
+		async (c) => {
+			const input = c.req.valid('json');
+			const current = await loadLdapConfig(db);
+			const bindPassword = input.bindPassword || current?.bindPassword;
+			if (!bindPassword) {
+				throw badRequest('Bind password is required', 'LDAP_BIND_PASSWORD_REQUIRED');
+			}
+			await testLdapConnection({ ...input, bindPassword });
 			return c.body(null, 204);
 		}
 	)

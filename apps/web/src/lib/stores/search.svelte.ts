@@ -25,6 +25,7 @@ import { normalizeHit } from '$lib/utils/normalize-hit';
 import { readLastIndex, writeLastIndex, clearLastIndex } from '$lib/utils/last-index';
 import { resolveWindow } from '$lib/utils/time-range';
 import { UNKNOWN_LEVEL } from '$lib/constants/level-colors';
+import { OTHER_VALUES } from '$lib/utils/histogram';
 import {
 	countFieldPaths,
 	displayNameFor,
@@ -231,6 +232,9 @@ export class SearchStore {
 	get sortDirection() {
 		return this.#parsedQuery().sortDirection;
 	}
+	get breakdownField() {
+		return this.#parsedQuery().breakdownField;
+	}
 
 	get filters(): Filter[] {
 		return this.#parsedQuery().filters;
@@ -308,6 +312,21 @@ export class SearchStore {
 		this.navigateQuery({ filters: [] });
 	}
 
+	setBreakdownField(field: string | null): void {
+		if (field === this.breakdownField) return;
+		this.navigateQuery({ breakdownField: field });
+	}
+
+	filterByBreakdownValue(value: string): void {
+		const field = this.breakdownField;
+		if (field === null || value === UNKNOWN_LEVEL || value === OTHER_VALUES) return;
+		if (field === this.fieldConfig?.levelField) {
+			this.toggleLevelFilter(value);
+			return;
+		}
+		this.addFilter(field, value);
+	}
+
 	toggleLevelFilter(value: string): void {
 		const levelField = this.fieldConfig?.levelField;
 		if (!levelField) return;
@@ -361,7 +380,10 @@ export class SearchStore {
 		this.#snapshotStartTs = undefined;
 		this.#snapshotEndTs = undefined;
 		this.searchError = null;
-		this.navigateQuery({ index: indexId, query: '', filters: [] }, { push: true });
+		this.navigateQuery(
+			{ index: indexId, query: '', filters: [], breakdownField: null },
+			{ push: true }
+		);
 	}
 
 	toggleSort(): void {
@@ -551,7 +573,7 @@ export class SearchStore {
 		if (this.#disposed) return;
 		if (this.selectedIndex === null) return;
 
-		const fetchKey = `${this.selectedIndex}|${this.composedQuery}|${timeWindow.startTs}|${timeWindow.endTs}`;
+		const fetchKey = `${this.selectedIndex}|${this.composedQuery}|${timeWindow.startTs}|${timeWindow.endTs}|${this.breakdownField ?? ''}`;
 		if (!force && fetchKey === this.#histogramFetchedFor) {
 			this.#histogramAbort?.abort();
 			return;
@@ -572,6 +594,7 @@ export class SearchStore {
 				{
 					indexId: this.selectedIndex,
 					query: this.composedQuery,
+					...(this.breakdownField ? { breakdownField: this.breakdownField } : {}),
 					...timeWindow
 				} satisfies HistogramInput,
 				controller.signal
@@ -762,6 +785,7 @@ export class SearchStore {
 		const totals: Record<string, number> = {};
 		for (const b of buckets) {
 			for (const [name, count] of Object.entries(b.levels)) {
+				if (name === OTHER_VALUES) continue;
 				totals[name] = (totals[name] ?? 0) + count;
 			}
 		}

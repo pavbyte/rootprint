@@ -60,6 +60,7 @@ describe('oidc issuer outage', () => {
 			google: { enabled: false },
 			github: { enabled: false },
 			oidc: { enabled: false },
+			ldap: { enabled: false },
 			password: { enabled: false }
 		});
 	});

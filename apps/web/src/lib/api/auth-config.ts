@@ -4,6 +4,7 @@ import { readApiError } from '$lib/api/errors';
 import type {
 	GitHubAllowedOrgsInput,
 	GoogleAllowedDomainsInput,
+	LdapConfigInput,
 	OAuthCredentialsInput,
 	OidcCredentialsInput,
 	PasswordSignInInput
@@ -85,4 +86,30 @@ export async function removeOidcCredentials(): Promise<void> {
 export async function savePasswordSignIn(input: PasswordSignInInput): Promise<void> {
 	const res = await client.api.settings.auth.password.$put({ json: input });
 	if (!res.ok) throw await readApiError(res, 'Failed to update password sign-in');
+}
+
+export type LdapAuthSettingsView = InferResponseType<
+	typeof client.api.settings.auth.ldap.$get,
+	200
+>;
+
+export async function getLdapAuth(): Promise<LdapAuthSettingsView> {
+	const res = await client.api.settings.auth.ldap.$get();
+	if (!res.ok) throw await readApiError(res, 'Failed to load LDAP settings');
+	return res.json();
+}
+
+export async function saveLdapConfig(input: LdapConfigInput): Promise<void> {
+	const res = await client.api.settings.auth.ldap.$put({ json: input });
+	if (!res.ok) throw await readApiError(res, 'Failed to save LDAP settings');
+}
+
+export async function testLdapConfig(input: LdapConfigInput): Promise<void> {
+	const res = await client.api.settings.auth.ldap.test.$post({ json: input });
+	if (!res.ok) throw await readApiError(res, 'LDAP connection failed');
+}
+
+export async function removeLdapConfig(): Promise<void> {
+	const res = await client.api.settings.auth.ldap.$delete();
+	if (!res.ok) throw await readApiError(res, 'Failed to remove LDAP settings');
 }

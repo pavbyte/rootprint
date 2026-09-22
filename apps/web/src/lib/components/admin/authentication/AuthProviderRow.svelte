@@ -1,7 +1,7 @@
 <script lang="ts">
 	import GoogleIcon from '@iconify-svelte/logos/google-icon';
 	import GitHubIcon from '@iconify-svelte/logos/github-icon';
-	import { KeyRound } from 'lucide-svelte';
+	import { KeyRound, Network } from 'lucide-svelte';
 	import type { ExternalProviderId } from 'api/types';
 	type ProviderRow = {
 		id: ExternalProviderId;
@@ -26,6 +26,8 @@
 			<GitHubIcon class="h-5 w-5" />
 		{:else if provider.id === 'oidc'}
 			<KeyRound class="h-5 w-5" />
+		{:else if provider.id === 'ldap'}
+			<Network class="h-5 w-5" />
 		{/if}
 	</div>
 

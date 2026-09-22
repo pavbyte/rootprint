@@ -27,3 +27,29 @@ export const OidcAuthSettingsResponse = named(
 		issuerUrl: v.nullable(v.string())
 	})
 );
+
+export const LdapAuthSettingsResponse = named(
+	'LdapAuthSettingsResponse',
+	v.object({
+		configured: v.boolean(),
+		host: v.string(),
+		port: v.number(),
+		useSsl: v.boolean(),
+		startTls: v.boolean(),
+		sslSkipVerify: v.boolean(),
+		bindDn: v.string(),
+		searchFilter: v.string(),
+		searchBaseDns: v.array(v.string()),
+		groupSearchFilter: v.string(),
+		groupSearchBaseDns: v.array(v.string()),
+		groupSearchFilterUserAttribute: v.string(),
+		attributes: v.object({
+			name: v.string(),
+			surname: v.string(),
+			username: v.string(),
+			memberOf: v.string(),
+			email: v.string()
+		}),
+		groupMappings: v.array(v.object({ groupDn: v.string(), role: v.picklist(['admin', 'user']) }))
+	})
+);

@@ -16,6 +16,7 @@ export const SavedViewResponse = named(
 		sortDirection: SortDirectionSchema,
 		columns: v.nullable(v.array(v.string())),
 		timeRange: v.nullable(TimeRangeSchema),
+		breakdownField: v.nullable(v.string()),
 		createdAt: isoTimestampString,
 		updatedAt: isoTimestampString
 	})

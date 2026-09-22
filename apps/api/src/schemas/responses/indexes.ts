@@ -160,7 +160,9 @@ export const HistogramBucketSchema = named(
 		keyAsString: v.string(),
 		docCount: v.number(),
 		levels: v.record(v.string(), v.number()),
-		omittedCount: v.number()
+		omittedCount: v.number(),
+		breakdown: v.record(v.string(), v.number()),
+		breakdownOmittedCount: v.number()
 	})
 );
 

@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 
 import { config } from '../config.js';
 import type { AppEnv } from '../env.js';
@@ -20,7 +20,11 @@ import {
 	setupPassword,
 	validateInviteToken
 } from '../services/auth.service.js';
-import { getGitHubAuthStatus, getGoogleAuthStatus } from '../services/settings.service.js';
+import {
+	getGitHubAuthStatus,
+	getGoogleAuthStatus,
+	loadLdapConfig
+} from '../services/settings.service.js';
 import { publicAuthLimiter, resolveClientIp } from '../middleware/rate-limit.js';
 import { conflict } from '../utils/http-error.js';
 
@@ -111,9 +115,10 @@ export const authRouter = new Hono<AppEnv>()
 		}),
 		async (c) => {
 			const cfg = authConfig();
-			const [google, github] = await Promise.all([
+			const [google, github, ldap] = await Promise.all([
 				getGoogleAuthStatus(db),
-				getGitHubAuthStatus(db)
+				getGitHubAuthStatus(db),
+				loadLdapConfig(db)
 			]);
 			const body: AuthProvidersInfo = {
 				// An empty allow-list rejects everyone, so the button could only produce errors.
@@ -121,17 +126,21 @@ export const authRouter = new Hono<AppEnv>()
 				github: { enabled: !!cfg.github && github.allowedOrgs.length > 0 },
 				// Read from the built instance: an unreachable issuer hides the button instead of breaking it.
 				oidc: { enabled: !!cfg.oidc },
+				ldap: { enabled: !!ldap },
 				password: { enabled: !cfg.passwordSignInDisabled }
 			};
 			return c.json(body);
 		}
 	)
-	.all('/*', async (c) => {
-		const req = c.req.raw;
-		const origin = req.headers.get('origin');
-		if (!origin) {
-			req.headers.set('origin', config.origin);
-		}
-		req.headers.set('x-rootprint-client-ip', resolveClientIp(c));
-		return auth().handler(req);
-	});
+	.post('/ldap/sign-in', publicAuthLimiter, (c) => forwardToBetterAuth(c))
+	.all('/*', (c) => forwardToBetterAuth(c));
+
+function forwardToBetterAuth(c: Context<AppEnv>) {
+	const req = c.req.raw;
+	const origin = req.headers.get('origin');
+	if (!origin || origin === 'null') {
+		req.headers.set('origin', config.origin);
+	}
+	req.headers.set('x-rootprint-client-ip', resolveClientIp(c));
+	return auth().handler(req);
+}

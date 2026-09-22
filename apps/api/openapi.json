@@ -517,6 +517,17 @@
 						],
 						"type": "object"
 					},
+					"ldap": {
+						"properties": {
+							"enabled": {
+								"type": "boolean"
+							}
+						},
+						"required": [
+							"enabled"
+						],
+						"type": "object"
+					},
 					"oidc": {
 						"properties": {
 							"enabled": {
@@ -544,6 +555,7 @@
 					"google",
 					"github",
 					"oidc",
+					"ldap",
 					"password"
 				],
 				"type": "object"
@@ -831,6 +843,18 @@
 			},
 			"HistogramBucketSchema": {
 				"properties": {
+					"breakdown": {
+						"additionalProperties": {
+							"type": "number"
+						},
+						"propertyNames": {
+							"type": "string"
+						},
+						"type": "object"
+					},
+					"breakdownOmittedCount": {
+						"type": "number"
+					},
 					"docCount": {
 						"type": "number"
 					},
@@ -858,7 +882,9 @@
 					"keyAsString",
 					"docCount",
 					"levels",
-					"omittedCount"
+					"omittedCount",
+					"breakdown",
+					"breakdownOmittedCount"
 				],
 				"type": "object"
 			},
@@ -1390,6 +1416,118 @@
 					"p50",
 					"p95",
 					"p99"
+				],
+				"type": "object"
+			},
+			"LdapAuthSettingsResponse": {
+				"properties": {
+					"attributes": {
+						"properties": {
+							"email": {
+								"type": "string"
+							},
+							"memberOf": {
+								"type": "string"
+							},
+							"name": {
+								"type": "string"
+							},
+							"surname": {
+								"type": "string"
+							},
+							"username": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"name",
+							"surname",
+							"username",
+							"memberOf",
+							"email"
+						],
+						"type": "object"
+					},
+					"bindDn": {
+						"type": "string"
+					},
+					"configured": {
+						"type": "boolean"
+					},
+					"groupMappings": {
+						"items": {
+							"properties": {
+								"groupDn": {
+									"type": "string"
+								},
+								"role": {
+									"enum": [
+										"admin",
+										"user"
+									],
+									"type": "string"
+								}
+							},
+							"required": [
+								"groupDn",
+								"role"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					},
+					"groupSearchBaseDns": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"groupSearchFilter": {
+						"type": "string"
+					},
+					"groupSearchFilterUserAttribute": {
+						"type": "string"
+					},
+					"host": {
+						"type": "string"
+					},
+					"port": {
+						"type": "number"
+					},
+					"searchBaseDns": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"searchFilter": {
+						"type": "string"
+					},
+					"sslSkipVerify": {
+						"type": "boolean"
+					},
+					"startTls": {
+						"type": "boolean"
+					},
+					"useSsl": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"configured",
+					"host",
+					"port",
+					"useSsl",
+					"startTls",
+					"sslSkipVerify",
+					"bindDn",
+					"searchFilter",
+					"searchBaseDns",
+					"groupSearchFilter",
+					"groupSearchBaseDns",
+					"groupSearchFilterUserAttribute",
+					"attributes",
+					"groupMappings"
 				],
 				"type": "object"
 			},
@@ -2074,6 +2212,16 @@
 			},
 			"SavedViewResponse": {
 				"properties": {
+					"breakdownField": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
 					"columns": {
 						"anyOf": [
 							{
@@ -2209,6 +2357,7 @@
 					"sortDirection",
 					"columns",
 					"timeRange",
+					"breakdownField",
 					"createdAt",
 					"updatedAt"
 				],
@@ -7566,6 +7715,128 @@
 				]
 			}
 		},
+		"/api/auth/ldap/sign-in": {
+			"post": {
+				"parameters": [],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object"
+							}
+						}
+					},
+					"required": true
+				},
+				"responses": {
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						},
+						"description": "Bad Request. Usually due to missing parameters, or invalid parameters."
+					},
+					"401": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						},
+						"description": "Unauthorized. Due to missing or invalid authentication."
+					},
+					"403": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"type": "object"
+								}
+							}
+						},
+						"description": "Forbidden. You do not have permission to access this resource or to perform this action."
+					},
+					"404": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"type": "object"
+								}
+							}
+						},
+						"description": "Not Found. The requested resource was not found."
+					},
+					"429": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"type": "object"
+								}
+							}
+						},
+						"description": "Too Many Requests. You have exceeded the rate limit. Try again later."
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"type": "object"
+								}
+							}
+						},
+						"description": "Internal Server Error. This is a problem with the server that you cannot fix."
+					}
+				},
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"summary": "Ldap sign in",
+				"tags": [
+					"Authentication"
+				]
+			}
+		},
 		"/api/auth/link-social": {
 			"post": {
 				"description": "Link a social account to the user",
@@ -12785,6 +13056,14 @@
 					},
 					{
 						"in": "query",
+						"name": "breakdownField",
+						"schema": {
+							"pattern": "^[@$_\\-a-zA-Z][@$_/.\\-a-zA-Z0-9]{0,254}$",
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
 						"name": "interval",
 						"required": true,
 						"schema": {
@@ -12842,7 +13121,7 @@
 						"cookieAuth": []
 					}
 				],
-				"summary": "Get log histogram",
+				"summary": "Get log histogram, optionally broken down by a field",
 				"tags": [
 					"Log explorer"
 				]
@@ -14317,6 +14596,17 @@
 						"application/json": {
 							"schema": {
 								"properties": {
+									"breakdownField": {
+										"anyOf": [
+											{
+												"pattern": "^[@$_\\-a-zA-Z][@$_/.\\-a-zA-Z0-9]{0,254}$",
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
 									"columns": {
 										"anyOf": [
 											{
@@ -14560,6 +14850,17 @@
 						"application/json": {
 							"schema": {
 								"properties": {
+									"breakdownField": {
+										"anyOf": [
+											{
+												"pattern": "^[@$_\\-a-zA-Z][@$_/.\\-a-zA-Z0-9]{0,254}$",
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
 									"columns": {
 										"anyOf": [
 											{
@@ -15517,6 +15818,397 @@
 					}
 				},
 				"summary": "Set Google OAuth credentials",
+				"tags": [
+					"Auth settings"
+				]
+			}
+		},
+		"/api/settings/auth/ldap": {
+			"delete": {
+				"operationId": "deleteApiSettingsAuthLdap",
+				"responses": {
+					"204": {
+						"description": "LDAP configuration removed"
+					},
+					"400": {
+						"$ref": "#/components/responses/BadRequest"
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"403": {
+						"$ref": "#/components/responses/Forbidden"
+					},
+					"404": {
+						"$ref": "#/components/responses/NotFound"
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalError"
+					},
+					"503": {
+						"$ref": "#/components/responses/ServiceUnavailable"
+					}
+				},
+				"summary": "Remove LDAP configuration",
+				"tags": [
+					"Auth settings"
+				]
+			},
+			"get": {
+				"operationId": "getApiSettingsAuthLdap",
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/LdapAuthSettingsResponse"
+								}
+							}
+						},
+						"description": "Successful response"
+					},
+					"400": {
+						"$ref": "#/components/responses/BadRequest"
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"403": {
+						"$ref": "#/components/responses/Forbidden"
+					},
+					"404": {
+						"$ref": "#/components/responses/NotFound"
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalError"
+					},
+					"503": {
+						"$ref": "#/components/responses/ServiceUnavailable"
+					}
+				},
+				"summary": "Get LDAP auth status",
+				"tags": [
+					"Auth settings"
+				]
+			},
+			"put": {
+				"operationId": "putApiSettingsAuthLdap",
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"attributes": {
+										"properties": {
+											"email": {
+												"minLength": 1,
+												"type": "string"
+											},
+											"memberOf": {
+												"minLength": 1,
+												"type": "string"
+											},
+											"name": {
+												"minLength": 1,
+												"type": "string"
+											},
+											"surname": {
+												"minLength": 1,
+												"type": "string"
+											},
+											"username": {
+												"minLength": 1,
+												"type": "string"
+											}
+										},
+										"required": [
+											"name",
+											"surname",
+											"username",
+											"memberOf",
+											"email"
+										],
+										"type": "object"
+									},
+									"bindDn": {
+										"minLength": 1,
+										"type": "string"
+									},
+									"bindPassword": {
+										"type": "string"
+									},
+									"groupMappings": {
+										"items": {
+											"properties": {
+												"groupDn": {
+													"minLength": 1,
+													"type": "string"
+												},
+												"role": {
+													"enum": [
+														"admin",
+														"user"
+													],
+													"type": "string"
+												}
+											},
+											"required": [
+												"groupDn",
+												"role"
+											],
+											"type": "object"
+										},
+										"minItems": 1,
+										"type": "array"
+									},
+									"groupSearchBaseDns": {
+										"items": {
+											"minLength": 1,
+											"type": "string"
+										},
+										"type": "array"
+									},
+									"groupSearchFilter": {
+										"type": "string"
+									},
+									"groupSearchFilterUserAttribute": {
+										"type": "string"
+									},
+									"host": {
+										"minLength": 1,
+										"type": "string"
+									},
+									"port": {
+										"maximum": 65535,
+										"minimum": 1,
+										"type": "integer"
+									},
+									"searchBaseDns": {
+										"items": {
+											"minLength": 1,
+											"type": "string"
+										},
+										"minItems": 1,
+										"type": "array"
+									},
+									"searchFilter": {
+										"minLength": 1,
+										"type": "string"
+									},
+									"sslSkipVerify": {
+										"type": "boolean"
+									},
+									"startTls": {
+										"type": "boolean"
+									},
+									"useSsl": {
+										"type": "boolean"
+									}
+								},
+								"required": [
+									"host",
+									"port",
+									"useSsl",
+									"startTls",
+									"sslSkipVerify",
+									"bindDn",
+									"searchFilter",
+									"searchBaseDns",
+									"attributes",
+									"groupMappings"
+								],
+								"type": "object"
+							}
+						}
+					},
+					"required": true
+				},
+				"responses": {
+					"204": {
+						"description": "LDAP configuration saved"
+					},
+					"400": {
+						"$ref": "#/components/responses/BadRequest"
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"403": {
+						"$ref": "#/components/responses/Forbidden"
+					},
+					"404": {
+						"$ref": "#/components/responses/NotFound"
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalError"
+					},
+					"503": {
+						"$ref": "#/components/responses/ServiceUnavailable"
+					}
+				},
+				"summary": "Save LDAP configuration",
+				"tags": [
+					"Auth settings"
+				]
+			}
+		},
+		"/api/settings/auth/ldap/test": {
+			"post": {
+				"operationId": "postApiSettingsAuthLdapTest",
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"attributes": {
+										"properties": {
+											"email": {
+												"minLength": 1,
+												"type": "string"
+											},
+											"memberOf": {
+												"minLength": 1,
+												"type": "string"
+											},
+											"name": {
+												"minLength": 1,
+												"type": "string"
+											},
+											"surname": {
+												"minLength": 1,
+												"type": "string"
+											},
+											"username": {
+												"minLength": 1,
+												"type": "string"
+											}
+										},
+										"required": [
+											"name",
+											"surname",
+											"username",
+											"memberOf",
+											"email"
+										],
+										"type": "object"
+									},
+									"bindDn": {
+										"minLength": 1,
+										"type": "string"
+									},
+									"bindPassword": {
+										"type": "string"
+									},
+									"groupMappings": {
+										"items": {
+											"properties": {
+												"groupDn": {
+													"minLength": 1,
+													"type": "string"
+												},
+												"role": {
+													"enum": [
+														"admin",
+														"user"
+													],
+													"type": "string"
+												}
+											},
+											"required": [
+												"groupDn",
+												"role"
+											],
+											"type": "object"
+										},
+										"minItems": 1,
+										"type": "array"
+									},
+									"groupSearchBaseDns": {
+										"items": {
+											"minLength": 1,
+											"type": "string"
+										},
+										"type": "array"
+									},
+									"groupSearchFilter": {
+										"type": "string"
+									},
+									"groupSearchFilterUserAttribute": {
+										"type": "string"
+									},
+									"host": {
+										"minLength": 1,
+										"type": "string"
+									},
+									"port": {
+										"maximum": 65535,
+										"minimum": 1,
+										"type": "integer"
+									},
+									"searchBaseDns": {
+										"items": {
+											"minLength": 1,
+											"type": "string"
+										},
+										"minItems": 1,
+										"type": "array"
+									},
+									"searchFilter": {
+										"minLength": 1,
+										"type": "string"
+									},
+									"sslSkipVerify": {
+										"type": "boolean"
+									},
+									"startTls": {
+										"type": "boolean"
+									},
+									"useSsl": {
+										"type": "boolean"
+									}
+								},
+								"required": [
+									"host",
+									"port",
+									"useSsl",
+									"startTls",
+									"sslSkipVerify",
+									"bindDn",
+									"searchFilter",
+									"searchBaseDns",
+									"attributes",
+									"groupMappings"
+								],
+								"type": "object"
+							}
+						}
+					},
+					"required": true
+				},
+				"responses": {
+					"204": {
+						"description": "LDAP connection succeeded"
+					},
+					"400": {
+						"$ref": "#/components/responses/BadRequest"
+					},
+					"401": {
+						"$ref": "#/components/responses/Unauthorized"
+					},
+					"403": {
+						"$ref": "#/components/responses/Forbidden"
+					},
+					"404": {
+						"$ref": "#/components/responses/NotFound"
+					},
+					"500": {
+						"$ref": "#/components/responses/InternalError"
+					},
+					"503": {
+						"$ref": "#/components/responses/ServiceUnavailable"
+					}
+				},
+				"summary": "Test LDAP search bind",
 				"tags": [
 					"Auth settings"
 				]

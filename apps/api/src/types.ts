@@ -45,6 +45,7 @@ import type { ShareViewResponse as ShareViewResponseSchema } from './schemas/res
 import type {
 	GoogleAuthSettingsResponse as GoogleAuthSettingsResponseSchema,
 	GitHubAuthSettingsResponse as GitHubAuthSettingsResponseSchema,
+	LdapAuthSettingsResponse as LdapAuthSettingsResponseSchema,
 	OidcAuthSettingsResponse as OidcAuthSettingsResponseSchema
 } from './schemas/responses/settings.js';
 import type { ServiceAccountResponse as ServiceAccountResponseSchema } from './schemas/responses/service-accounts.js';
@@ -63,7 +64,11 @@ import type {
 	TopActorRowResponse as TopActorRowResponseSchema,
 	VolumeBucketResponse as VolumeBucketResponseSchema
 } from './schemas/responses/admin.js';
-import type { oauthCredentialsSchema, oidcCredentialsSchema } from './schemas/settings.js';
+import type {
+	LdapConfigInput,
+	oauthCredentialsSchema,
+	oidcCredentialsSchema
+} from './schemas/settings.js';
 import type { ExportFormatSchema } from './schemas/export.js';
 import type { DisplayModeSchema } from './schemas/display-mode.js';
 import type { SortDirectionSchema } from './schemas/filters.js';
@@ -164,6 +169,8 @@ export type GitHubAuthSettings = v.InferOutput<typeof GitHubAuthSettingsResponse
 
 export type OidcAuthSettings = v.InferOutput<typeof OidcAuthSettingsResponseSchema>;
 
+export type LdapAuthSettings = v.InferOutput<typeof LdapAuthSettingsResponseSchema>;
+
 export type AuthProvidersInfo = v.InferOutput<typeof AuthProvidersResponseSchema>;
 
 export type ExternalProviderId = Exclude<keyof AuthProvidersInfo, 'password'>;
@@ -243,6 +250,8 @@ export type VerifyApiKeyResult = { status: 'ok'; key: VerifiedApiKey } | { statu
 export type OAuthCredentials = v.InferOutput<typeof oauthCredentialsSchema>;
 
 export type OidcCredentials = v.InferOutput<typeof oidcCredentialsSchema>;
+
+export type LdapConfig = Omit<LdapConfigInput, 'bindPassword'> & { bindPassword: string };
 
 /** Everything Better Auth is built from, plus the effective password policy. */
 export type AuthConfig = {

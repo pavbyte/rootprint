@@ -106,6 +106,7 @@ export const view = pgTable(
 		sortDirection: text('sort_direction').$type<SortDirection>().notNull().default('desc'),
 		columns: jsonb('columns').$type<string[]>(),
 		timeRange: jsonb('time_range').$type<TimeRange>(),
+		breakdownField: text('breakdown_field'),
 		createdAt: timestamp('created_at').defaultNow().notNull(),
 		updatedAt: timestamp('updated_at')
 			.defaultNow()

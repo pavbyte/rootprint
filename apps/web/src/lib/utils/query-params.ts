@@ -59,6 +59,10 @@ export function serialize(state: ParsedQuery): URLSearchParams {
 		params.set('sort', state.sortDirection);
 	}
 
+	if (state.breakdownField !== null) {
+		params.set('breakdown', state.breakdownField);
+	}
+
 	for (const filter of state.filters) {
 		params.append('f', encodeFilter(filter));
 	}
@@ -90,6 +94,7 @@ export function deserialize(params: URLSearchParams): ParsedQuery {
 	const sort = params.get('sort');
 	const sortDirection: SortDirection =
 		sort === 'asc' || sort === 'desc' ? sort : DEFAULTS.sortDirection;
+	const breakdownField = params.get('breakdown') || null;
 
 	const filters: Filter[] = [];
 	for (const raw of params.getAll('f')) {
@@ -97,7 +102,7 @@ export function deserialize(params: URLSearchParams): ParsedQuery {
 		if (parsed) filters.push(parsed);
 	}
 
-	return { index, query, timeRange, sortDirection, filters };
+	return { index, query, timeRange, sortDirection, filters, breakdownField };
 }
 
 /** Merge a partial query update into existing URL params, returning the new search string. */

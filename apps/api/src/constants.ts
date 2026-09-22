@@ -27,6 +27,9 @@ export const FIELD_VALUES_MAX = 65_000;
 /** Fallback `limit` for the field-values endpoint when the caller doesn't pass one. */
 export const FIELD_VALUES_DEFAULT = 100;
 
+/** Series cap per histogram bucket, for both the level split and the chosen breakdown. */
+export const HISTOGRAM_TERMS_SIZE = 16;
+
 // Monitoring errors
 export const SPAN_KINDS = ['server', 'client', 'producer', 'consumer', 'internal'] as const;
 export type SpanKind = (typeof SPAN_KINDS)[number];

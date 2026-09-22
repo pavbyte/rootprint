@@ -1,5 +1,8 @@
 import type { HistogramBucket } from '$lib/types';
 
+/** Internal series key for terms omitted by the aggregation's cardinality cap. */
+export const OTHER_VALUES = '\u0000other-values';
+
 const INTERVAL_THRESHOLDS: [number, number][] = [
 	[10 * 60 - 1, 1], // <10m → 1s
 	[60 * 60, 10], // ≤1h  → 10s
@@ -31,7 +34,7 @@ export function formatInterval(seconds: number): string {
 
 /** Fills a uniform grid over [startTs, endTs]; sparse buckets render as zeros. */
 export function padHistogramBuckets(
-	bucketMap: Map<number, { levels: Record<string, number>; count: number }>,
+	bucketMap: Map<number, Omit<HistogramBucket, 'timestamp'>>,
 	startTs: number,
 	endTs: number,
 	fallbackIntervalSec: number
@@ -62,6 +65,7 @@ export function padHistogramBuckets(
 		buckets.push({
 			timestamp: ts,
 			levels: entry?.levels ?? {},
+			breakdown: entry?.breakdown ?? {},
 			count: entry?.count ?? 0
 		});
 	}
