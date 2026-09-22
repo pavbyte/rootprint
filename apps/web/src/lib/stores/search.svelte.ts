@@ -272,11 +272,21 @@ export class SearchStore {
 	runQuery(query: string): void {
 		if (this.#disposed || this.selectedIndex === null) return;
 		if (query === this.query) {
-			this.#refreshRevision += 1;
-			this.#runFreshSearch(true);
+			this.refresh();
 			return;
 		}
 		this.navigateQuery({ query }, { push: true });
+	}
+
+	/**
+	 * Re-runs search, histogram, and field discovery without touching the URL. A relative range
+	 * resolves a fresh `now`, so this is how new logs arrive; an absolute one re-reads its window.
+	 */
+	refresh(): void {
+		if (this.#disposed || this.selectedIndex === null) return;
+		if (this.loading === 'fresh' || this.histogramLoading) return;
+		this.#refreshRevision += 1;
+		this.#runFreshSearch(true);
 	}
 
 	hasFilter(field: string, value: string, exclude = false): boolean {

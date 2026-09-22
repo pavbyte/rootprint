@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { tick } from 'svelte';
-	import { Play, Share2 } from 'lucide-svelte';
+	import { Play, RefreshCw, Share2 } from 'lucide-svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { isTraceId } from 'api/schemas';
@@ -29,6 +29,7 @@
 	let dismissed = $state(false);
 
 	const unrun = $derived(queryInput !== store.query);
+	const refreshing = $derived(store.loading === 'fresh' || store.histogramLoading);
 
 	const valueCache = new Map<string, LogFieldValueBucket[]>();
 	let valueCacheRevision = -1;
@@ -274,15 +275,21 @@
 		<button
 			type="button"
 			class="btn btn-sm {unrun ? 'btn-primary' : 'btn-ghost'}"
-			aria-label="Run query"
-			title="Run query"
+			aria-label={unrun ? 'Run query' : 'Refresh results'}
+			title={unrun ? 'Run query' : 'Reload with the latest data'}
+			disabled={!unrun && refreshing}
 			onmousedown={(e) => {
 				e.preventDefault();
 			}}
 			onclick={runQuery}
 		>
-			<Play class="h-3.5 w-3.5" />
-			Run
+			{#if unrun}
+				<Play class="h-3.5 w-3.5" />
+				Run
+			{:else}
+				<RefreshCw class="h-3.5 w-3.5 {refreshing ? 'animate-spin' : ''}" />
+				Refresh
+			{/if}
 		</button>
 	</div>
 </div>
