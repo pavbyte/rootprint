@@ -20,11 +20,14 @@
 	async function signOut() {
 		signingOut = true;
 		try {
-			await authClient.signOut();
+			const result = await authClient.signOut();
+			if (result.error) {
+				throw new Error(result.error.message ?? 'Could not sign out');
+			}
 			await invalidate(DEP.session);
 			await goto('/auth/sign-in');
-		} catch {
-			toast.error('Failed to sign out');
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : 'Failed to sign out');
 		} finally {
 			signingOut = false;
 		}
