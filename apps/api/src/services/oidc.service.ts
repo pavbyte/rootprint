@@ -1,13 +1,13 @@
 import * as v from 'valibot';
 
 import { config } from '../config.js';
-import { isHttpsOrLoopback, stripTrailingSlash } from '../schemas/settings.js';
+import { isHttpsOrPrivate, stripTrailingSlash } from '../schemas/settings.js';
 import { badRequest } from '../utils/http-error.js';
 
 const DISCOVERY_TIMEOUT_MS = config.oidcDiscoveryTimeoutMs;
 
 // The token endpoint carries the client secret; a discovery document may not downgrade it.
-const endpoint = v.pipe(v.string(), v.check(isHttpsOrLoopback));
+const endpoint = v.pipe(v.string(), v.check(isHttpsOrPrivate));
 
 const discoverySchema = v.object({
 	issuer: v.pipe(v.string(), v.minLength(1)),
@@ -60,6 +60,14 @@ export async function verifyOidcIssuer(issuerUrl: string): Promise<{ tokenAuth: 
 	}
 	if (stripTrailingSlash(parsed.output.issuer) !== issuerUrl) {
 		throw discoveryFailed('OpenID configuration issuer does not match the Issuer URL');
+	}
+	const isHttps = (url: string) => new URL(url).protocol === 'https:';
+	if (isHttps(issuerUrl)) {
+		const { authorization_endpoint, token_endpoint, jwks_uri, userinfo_endpoint } = parsed.output;
+		const endpoints = [authorization_endpoint, token_endpoint, jwks_uri, userinfo_endpoint];
+		if (endpoints.some((url) => url && !isHttps(url))) {
+			throw discoveryFailed('OpenID configuration downgrades an endpoint to http');
+		}
 	}
 	// Better Auth always sends code_challenge_method=S256; an omitted list proves nothing.
 	const methods = parsed.output.code_challenge_methods_supported;
