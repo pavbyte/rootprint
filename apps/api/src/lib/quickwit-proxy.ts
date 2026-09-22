@@ -1,9 +1,8 @@
 import type { Context } from 'hono';
 
 import type { ProxyResult } from '../types.js';
+import { config } from '../config.js';
 import { badRequest, serviceUnavailable } from '../utils/http-error.js';
-
-const PROXY_TIMEOUT_MS = 120_000;
 
 /** Quickwit reports errors as `{message}` JSON; anything else is surfaced as clipped raw text. */
 export function readUpstreamMessage(bodyBytes: ArrayBuffer, fallback: string): string {
@@ -53,7 +52,7 @@ export async function proxyToQuickwit(c: Context, opts: ProxyOpts): Promise<Prox
 			headers: opts.headers,
 			body: reqBody,
 			duplex: 'half',
-			signal: AbortSignal.timeout(PROXY_TIMEOUT_MS)
+			signal: AbortSignal.timeout(config.ingestProxyTimeoutMs)
 		} as RequestInit);
 	} catch {
 		throw serviceUnavailable('Upstream unavailable', 'UPSTREAM_UNAVAILABLE');
@@ -63,6 +62,12 @@ export async function proxyToQuickwit(c: Context, opts: ProxyOpts): Promise<Prox
 		await upstream.body?.cancel().catch(() => {});
 		throw serviceUnavailable('Upstream unavailable', 'UPSTREAM_UNAVAILABLE');
 	}
-	const bodyBytes = await upstream.arrayBuffer();
+	// The timeout signal stays armed while the body streams, so an abort here must still read as 503.
+	let bodyBytes: ArrayBuffer;
+	try {
+		bodyBytes = await upstream.arrayBuffer();
+	} catch {
+		throw serviceUnavailable('Upstream unavailable', 'UPSTREAM_UNAVAILABLE');
+	}
 	return { status: upstream.status, headers: upstream.headers, bodyBytes };
 }
