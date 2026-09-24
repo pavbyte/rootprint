@@ -88,7 +88,7 @@ export function toErrorRow(hit: Record<string, unknown>): MonitoringErrorRow | n
 		asText(exception['exception.message'], asText(exception['exception.type'], ''))
 	);
 	const startNanos = hit['span_start_timestamp_nanos'];
-	const duration = hit['span_duration_millis'];
+	const endNanos = hit['span_end_timestamp_nanos'];
 
 	return {
 		traceId,
@@ -99,7 +99,10 @@ export function toErrorRow(hit: Record<string, unknown>): MonitoringErrorRow | n
 		kind: SPAN_KIND_TAGS[Number(hit['span_kind'])] ?? 'internal',
 		message: message.slice(0, MESSAGE_MAX_CHARS),
 		httpStatus: httpStatusOf(asRecord(hit['span_attributes'])),
-		durationMillis: typeof duration === 'number' ? duration : 0
+		durationMillis:
+			typeof startNanos === 'number' && typeof endNanos === 'number' && endNanos > startNanos
+				? (endNanos - startNanos) / NANOS_PER_MILLI
+				: 0
 	};
 }
 

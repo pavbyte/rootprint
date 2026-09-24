@@ -12,7 +12,8 @@
 	import SidebarNavItem from './SidebarNavItem.svelte';
 	import UserMenu from './UserMenu.svelte';
 	import HelpMenu from './HelpMenu.svelte';
-	import { openedFromExplorer } from '$lib/utils/trace-params';
+	import { shell } from '$lib/stores/shell.svelte';
+	import { traceOrigin } from '$lib/utils/trace-params';
 	import { readString, writeString } from '$lib/utils/safe-storage';
 
 	type User = { id: string; name: string | null; email: string };
@@ -27,18 +28,19 @@
 
 	const path = $derived(page.url.pathname);
 	const onSettings = $derived(path.startsWith('/settings'));
-	const onMonitoring = $derived(path.startsWith('/monitoring'));
 	const onTraceDetail = $derived(path.startsWith('/traces/'));
-	// A trace lights the page that opened it: the explorer, or (by default) the log search.
-	const fromExplorer = $derived(openedFromExplorer(page.url.searchParams.get('returnTo')));
-	const onTraces = $derived(path === '/traces' || (onTraceDetail && fromExplorer));
-	// Shared searches are only ever reached from a log, so they keep Search lit.
-	const onSearch = $derived(
-		path === '/' || path.startsWith('/s/') || (onTraceDetail && !fromExplorer)
+	// A trace lights the page that opened it: the explorer, monitoring, or (by default) the log search.
+	const origin = $derived(
+		onTraceDetail ? traceOrigin(page.url.searchParams.get('returnTo')) : null
 	);
+	const onTraces = $derived(path === '/traces' || origin === 'traces');
+	const onMonitoring = $derived(path.startsWith('/monitoring') || origin === 'monitoring');
+	// Shared searches are only ever reached from a log, so they keep Search lit.
+	const onSearch = $derived(path === '/' || path.startsWith('/s/') || origin === 'search');
 </script>
 
 <aside
+	inert={shell.inert}
 	class="border-line bg-base-100 flex min-h-0 shrink-0 flex-col overflow-y-auto border-r transition-[width] {collapsed
 		? 'w-14'
 		: 'w-60'}"

@@ -1,8 +1,13 @@
 import type { ExploreStatus } from 'api/constants';
 
-/** A trace opened from the explorer returns there; any other `returnTo` is a log search. */
-export const openedFromExplorer = (returnTo: string | null): boolean =>
-	returnTo?.startsWith('/traces') ?? false;
+export type TraceOrigin = 'traces' | 'monitoring' | 'search';
+
+/** The page a trace was opened from, by its `returnTo`; anything else is a log search. */
+export function traceOrigin(returnTo: string | null): TraceOrigin {
+	if (returnTo?.startsWith('/traces')) return 'traces';
+	if (returnTo?.startsWith('/monitoring')) return 'monitoring';
+	return 'search';
+}
 
 /** `index` is the log index for span→log links; null disables them. */
 export function traceDetailHref(

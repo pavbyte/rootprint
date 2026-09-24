@@ -14,7 +14,7 @@
 	import { firstErrorSpan, spansInTreeOrder } from '$lib/utils/span-stats';
 	import { traceLogsHref } from '$lib/utils/trace-logs';
 	import { formatSpanDuration, formatSpanStart } from '$lib/utils/time';
-	import { openedFromExplorer } from '$lib/utils/trace-params';
+	import { traceOrigin, type TraceOrigin } from '$lib/utils/trace-params';
 	import type { SpanNode } from '$lib/types';
 
 	let { data } = $props();
@@ -36,7 +36,12 @@
 		});
 	}
 
-	const backLabel = $derived(openedFromExplorer(data.returnTo) ? 'Back to traces' : 'Back to logs');
+	const BACK_LABELS: Record<TraceOrigin, string> = {
+		traces: 'Back to traces',
+		monitoring: 'Back to services',
+		search: 'Back to logs'
+	};
+	const backLabel = $derived(BACK_LABELS[traceOrigin(data.returnTo)]);
 
 	const model = $derived(data.model);
 	const root = $derived(model.roots[0] ?? null);

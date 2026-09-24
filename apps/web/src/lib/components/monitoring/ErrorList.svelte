@@ -274,7 +274,11 @@
 				</div>
 				{#each rows as row (row.traceId + row.spanId)}
 					<a
-						href={traceDetailHref(row.traceId, { index: logIndex, span: row.spanId })}
+						href={traceDetailHref(row.traceId, {
+							index: logIndex,
+							span: row.spanId,
+							returnTo: page.url
+						})}
 						target="_blank"
 						rel="noopener"
 						class="hover:bg-base-200/60 grid {columns} items-center gap-3 px-4 py-2 transition-colors"

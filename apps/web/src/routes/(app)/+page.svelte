@@ -10,6 +10,7 @@
 	import FilterChips from '$lib/components/search/FilterChips.svelte';
 	import ResultsBar from '$lib/components/search/ResultsBar.svelte';
 	import { SearchStore } from '$lib/stores/search.svelte';
+	import { shell } from '$lib/stores/shell.svelte';
 	import {
 		buildGridTemplate,
 		computeColumnWidths,
@@ -59,6 +60,10 @@
 	$effect(() => writeString(CHART_STORAGE_KEY, chartCollapsed ? '1' : '0'));
 
 	let selectedLog = $state<LogHit | null>(null);
+	$effect(() => {
+		shell.inert = selectedLog !== null;
+		return () => (shell.inert = false);
+	});
 
 	let prevIndexId: string | null | undefined = undefined;
 	$effect(() => {
