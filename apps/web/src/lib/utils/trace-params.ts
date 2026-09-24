@@ -1,3 +1,7 @@
+/** A trace opened from the explorer returns there; any other `returnTo` is a log search. */
+export const openedFromExplorer = (returnTo: string | null): boolean =>
+	returnTo?.startsWith('/traces') ?? false;
+
 /** `index` is the log index for span→log links; null disables them. */
 export function traceDetailHref(
 	traceId: string,

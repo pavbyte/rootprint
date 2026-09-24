@@ -16,6 +16,7 @@
 	import { firstErrorSpan, spansInTreeOrder } from '$lib/utils/span-stats';
 	import { traceLogsHref } from '$lib/utils/trace-logs';
 	import { formatSpanDuration, formatSpanStart } from '$lib/utils/time';
+	import { openedFromExplorer } from '$lib/utils/trace-params';
 	import type { SpanNode } from '$lib/types';
 
 	let { data } = $props();
@@ -37,6 +38,8 @@
 			noScroll: true
 		});
 	}
+
+	const backLabel = $derived(openedFromExplorer(data.returnTo) ? 'Back to traces' : 'Back to logs');
 
 	const model = $derived(data.model);
 	const root = $derived(model.roots[0] ?? null);
@@ -110,7 +113,7 @@
 		<div class="flex flex-wrap items-center justify-between gap-2">
 			<a href={data.returnTo} class="btn btn-ghost btn-xs -ml-2 gap-1.5">
 				<ArrowLeft class="h-3.5 w-3.5" />
-				Back to logs
+				{backLabel}
 			</a>
 			<div class="flex items-center gap-2">
 				<select
