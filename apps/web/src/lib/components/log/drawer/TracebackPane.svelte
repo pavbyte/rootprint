@@ -1,7 +1,5 @@
 <script lang="ts">
-	import { Copy } from 'lucide-svelte';
-
-	import { copyWithToast } from '$lib/utils/clipboard';
+	import CopyButton from '$lib/components/ui/CopyButton.svelte';
 	import { pluralize } from '$lib/utils/format';
 
 	let { value }: { value: unknown } = $props();
@@ -13,15 +11,11 @@
 		return String(value ?? '');
 	});
 	const lineCount = $derived(text === '' ? 0 : text.split('\n').length);
-
-	function copyTraceback(): void {
-		void copyWithToast(text, 'Traceback copied');
-	}
 </script>
 
 <div class="flex h-full min-h-0 flex-col p-3">
 	<div
-		class="border-line bg-base-200/50 flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border"
+		class="border-line bg-base-200/50 rounded-box flex min-h-0 flex-1 flex-col overflow-hidden border"
 	>
 		<div class="border-line bg-base-200 flex items-center justify-between border-b px-3 py-1.5">
 			<div class="flex items-center gap-2">
@@ -30,15 +24,9 @@
 					{pluralize(lineCount, 'line')}
 				</span>
 			</div>
-			<button
-				type="button"
-				class="btn btn-ghost btn-xs gap-1"
-				aria-label="Copy traceback"
-				onclick={copyTraceback}
-			>
-				<Copy class="h-3 w-3" aria-hidden="true" />
+			<CopyButton {text} class="btn btn-ghost btn-xs gap-1" aria-label="Copy traceback">
 				Copy
-			</button>
+			</CopyButton>
 		</div>
 		<div class="min-h-0 flex-1 overflow-auto">
 			<pre class="p-3 text-xs leading-relaxed whitespace-pre">{text}</pre>

@@ -1,22 +1,22 @@
 <script lang="ts">
-	import { ScrollText, X } from 'lucide-svelte';
+	import { ChevronRight, ScrollText, X } from 'lucide-svelte';
 
 	import FieldRow from '$lib/components/ui/FieldRow.svelte';
-	import { copyWithToast } from '$lib/utils/clipboard';
-	import { pluralize } from '$lib/utils/format';
+	import { formatDurationMicros, pluralize } from '$lib/utils/format';
 	import { serviceColor } from '$lib/utils/service-color';
 	import {
-		dbSpans,
-		descendants,
+		dbRollups,
 		describeSpan,
 		exceptionHeadline,
+		firstErrorSpan,
 		selfMicros,
+		spansInTreeOrder,
 		topOperations
 	} from '$lib/utils/span-stats';
-	import { formatSpanDuration, formatSpanStart } from '$lib/utils/time';
+	import { formatTimestamp } from '$lib/utils/time';
 	import type { FieldRowData, SpanNode } from '$lib/types';
 
-	type SpanTab = 'overview' | 'parameters' | 'events';
+	type SpanTab = 'overview' | 'parameters' | 'database' | 'events';
 
 	let {
 		span,
@@ -37,10 +37,10 @@
 	const TABS: { id: SpanTab; label: string }[] = [
 		{ id: 'overview', label: 'Overview' },
 		{ id: 'parameters', label: 'Parameters' },
+		{ id: 'database', label: 'Database' },
 		{ id: 'events', label: 'Events' }
 	];
 
-	/** Rendered on the exception's own header and <pre>, so they'd be duplicates in the field table. */
 	const EXCEPTION_KEYS = ['exception.type', 'exception.message', 'exception.stacktrace'];
 
 	let activeTab = $state<SpanTab>('overview');
@@ -66,7 +66,7 @@
 	}
 
 	const formatOffset = (micros: number): string =>
-		micros === 0 ? '+0µs' : `${micros < 0 ? '-' : '+'}${formatSpanDuration(Math.abs(micros))}`;
+		`${micros < 0 ? '-' : '+'}${formatDurationMicros(Math.abs(micros))}`;
 
 	const field = (name: string, value: string): FieldRowData => ({
 		name,
@@ -81,10 +81,10 @@
 	const percentOf = (part: number, whole: number): number | null =>
 		whole > 0 ? Math.round((part / whole) * 100) : null;
 
-	const startText = $derived(
-		`${formatOffset(span.startOffsetMicros)} · ${formatSpanStart(traceStartMicros + span.startOffsetMicros)}`
-	);
-	const durationText = $derived(formatSpanDuration(span.durationMicros));
+	const startOffset = $derived(formatOffset(span.startOffsetMicros));
+	const startWall = $derived(formatTimestamp((traceStartMicros + span.startOffsetMicros) / 1000));
+	const startText = $derived(`${startOffset} · ${startWall}`);
+	const durationText = $derived(formatDurationMicros(span.durationMicros));
 
 	const identity = $derived([
 		field('span_id', span.spanId),
@@ -96,22 +96,15 @@
 	const attributes = $derived(toFields(span.attributes));
 	const resource = $derived(resources[span.resourceId] ?? null);
 
-	const subtree = $derived(descendants(span));
+	const subtree = $derived(spansInTreeOrder(span.children));
 
 	const selfDurationMicros = $derived(selfMicros(span));
 	const selfPct = $derived(percentOf(selfDurationMicros, span.durationMicros));
-	const childDurationMicros = $derived(Math.max(span.durationMicros - selfDurationMicros, 0));
-	const childPct = $derived(selfPct === null ? null : Math.max(100 - selfPct, 0));
+	const childDurationMicros = $derived(span.durationMicros - selfDurationMicros);
+	const childPct = $derived(selfPct === null ? null : 100 - selfPct);
 
 	const errorsBelow = $derived(subtree.filter((s) => s.isError));
-	// Single pass for one element: a failing dependency can make every descendant an error.
-	const firstErrorBelow = $derived(
-		errorsBelow.reduce<SpanNode | null>(
-			(earliest, s) =>
-				earliest && earliest.startOffsetMicros <= s.startOffsetMicros ? earliest : s,
-			null
-		)
-	);
+	const firstErrorBelow = $derived(firstErrorSpan(errorsBelow));
 	const exceptionEvent = $derived(span.events.find((e) => e.name === 'exception') ?? null);
 	const errorMessage = $derived(
 		span.attributes['otel.status_description'] ||
@@ -122,33 +115,26 @@
 
 	const rollups = $derived(topOperations(subtree));
 
-	const dbCalls = $derived(
-		dbSpans([span, ...subtree]).toSorted((a, b) => a.startOffsetMicros - b.startOffsetMicros)
-	);
-
-	const dbTotalMicros = $derived(dbCalls.reduce((sum, s) => sum + s.durationMicros, 0));
+	const dbTargets = $derived(dbRollups([span, ...subtree]));
+	const dbCallCount = $derived(dbTargets.reduce((n, t) => n + t.count, 0));
+	const dbTotalMicros = $derived(dbTargets.reduce((sum, t) => sum + t.totalMicros, 0));
 	const dbSharePct = $derived(percentOf(dbTotalMicros, span.durationMicros));
-	const dbBarPct = $derived(Math.min(dbSharePct ?? 0, 100));
 
-	const tabCounts: Partial<Record<SpanTab, number>> = $derived({
-		events: span.events.length
-	});
-
-	const isDisabled = (id: SpanTab): boolean => id in tabCounts && !tabCounts[id];
+	const tabCount = (id: SpanTab): number | null =>
+		id === 'events' ? span.events.length : id === 'database' ? dbCallCount : null;
+	const isDisabled = (id: SpanTab): boolean => tabCount(id) === 0;
 
 	$effect(() => {
 		if (isDisabled(activeTab)) activeTab = 'overview';
 	});
-
-	const copyValue = (f: FieldRowData): void => void copyWithToast(f.value, 'Value copied');
 </script>
 
 {#snippet table(fields: FieldRowData[])}
-	<div class="border-line overflow-hidden rounded-md border">
+	<div class="border-line rounded-box overflow-hidden border">
 		<table class="w-full table-fixed border-collapse">
 			<tbody>
 				{#each fields as f (f.name)}
-					<FieldRow field={f} keyClass="w-40 max-w-40" onCopy={copyValue} />
+					<FieldRow field={f} keyClass="w-40 max-w-40" copyable />
 				{/each}
 			</tbody>
 		</table>
@@ -173,10 +159,11 @@
 <div class="flex h-full min-h-0 flex-col">
 	<div class="border-line flex items-start justify-between gap-3 border-b px-4 py-3.5">
 		<div class="min-w-0">
-			<div class="text-base-content/60 flex min-w-0 items-center gap-1.5 text-xs">
+			<div class="text-subtle flex min-w-0 items-center gap-1.5 text-xs">
 				<span
-					class="h-2 w-2 shrink-0 rounded-full"
+					class="status shrink-0"
 					style={`background-color:${serviceColor(span.serviceName)}`}
+					aria-hidden="true"
 				></span>
 				<span class="truncate">{span.serviceName}</span>
 				{#if span.isError}
@@ -187,8 +174,8 @@
 		</div>
 		<div class="flex shrink-0 items-center gap-1.5">
 			{#if logsHref}
-				<a href={logsHref} target="_blank" rel="noopener" class="btn btn-primary btn-xs gap-1.5">
-					<ScrollText class="h-3.5 w-3.5" />
+				<a href={logsHref} target="_blank" rel="noopener" class="btn btn-xs gap-1.5">
+					<ScrollText class="size-3" aria-hidden="true" />
 					Logs for this span
 				</a>
 			{/if}
@@ -196,9 +183,10 @@
 				type="button"
 				class="btn btn-ghost btn-xs btn-square"
 				aria-label="Close span detail"
+				title="Close span detail"
 				onclick={onClose}
 			>
-				<X class="h-3.5 w-3.5" />
+				<X class="size-3" aria-hidden="true" />
 			</button>
 		</div>
 	</div>
@@ -221,16 +209,19 @@
 				aria-disabled={isDisabled(tab.id)}
 				class={[
 					'tab-underline shrink-0 px-3 py-2.5 text-xs transition-colors',
-					isDisabled(tab.id) && 'text-base-content/30 cursor-not-allowed',
-					activeTab === tab.id ? 'text-base-content font-medium' : 'text-base-content/60'
+					isDisabled(tab.id)
+						? 'text-subtle cursor-not-allowed opacity-50'
+						: activeTab === tab.id
+							? 'text-base-content font-medium'
+							: 'text-subtle'
 				]}
 				onclick={() => {
 					if (!isDisabled(tab.id)) activeTab = tab.id;
 				}}
 			>
 				{tab.label}
-				{#if tabCounts[tab.id]}
-					<span class="text-subtle ml-1 tabular-nums">{tabCounts[tab.id]}</span>
+				{#if tabCount(tab.id)}
+					<span class="text-subtle ml-1 tabular-nums">{tabCount(tab.id)}</span>
 				{/if}
 			</button>
 		{/each}
@@ -246,13 +237,11 @@
 			{#if activeTab === 'overview'}
 				<section>
 					<h3 class="section-label mb-2">Status</h3>
-					<div class="border-line rounded-md border px-3 py-2.5">
+					<div class="border-line rounded-box border px-3 py-2.5">
 						<div class="flex items-start gap-2.5">
 							<span
-								class={[
-									'mt-1.5 h-2 w-2 shrink-0 rounded-full',
-									span.isError ? 'bg-error' : 'bg-success'
-								]}
+								class={['status mt-1.5 shrink-0', span.isError ? 'status-error' : 'status-success']}
+								aria-hidden="true"
 							></span>
 							<div class="min-w-0 flex-1">
 								<div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -270,7 +259,7 @@
 									{/if}
 								</div>
 								{#if errorMessage}
-									<p class="text-base-content/70 mt-1 text-xs leading-5 break-words">
+									<p class="text-muted mt-1 text-xs leading-5 break-words">
 										{errorMessage}
 									</p>
 								{/if}
@@ -291,7 +280,7 @@
 
 				<section>
 					<h3 class="section-label mb-2">Timing</h3>
-					<div class="border-line overflow-hidden rounded-md border">
+					<div class="border-line rounded-box overflow-hidden border">
 						<div class="p-3">
 							<p class="text-subtle text-xs">Total duration</p>
 							<p class="mt-0.5 font-mono text-xl leading-6 tabular-nums">{durationText}</p>
@@ -312,7 +301,7 @@
 										Self time
 									</dt>
 									<dd class="mt-0.5 font-mono text-xs tabular-nums">
-										{formatSpanDuration(selfDurationMicros)}
+										{formatDurationMicros(selfDurationMicros)}
 										{#if selfPct !== null}
 											<span class="text-subtle ml-1">{selfPct}%</span>
 										{/if}
@@ -324,7 +313,7 @@
 										Child spans
 									</dt>
 									<dd class="mt-0.5 font-mono text-xs tabular-nums">
-										{formatSpanDuration(childDurationMicros)}
+										{formatDurationMicros(childDurationMicros)}
 										{#if childPct !== null}
 											<span class="text-subtle ml-1">{childPct}%</span>
 										{/if}
@@ -337,54 +326,25 @@
 							class="border-line divide-line grid grid-cols-[minmax(0,1fr)_auto] divide-x border-t"
 						>
 							<div class="min-w-0 px-3 py-2.5">
-								<dt class="section-label">Started</dt>
+								<dt class="text-muted text-xs">Started</dt>
 								<dd class="mt-0.5 truncate font-mono text-xs tabular-nums" title={startText}>
-									{formatSpanStart(traceStartMicros + span.startOffsetMicros)}
+									{startWall}
 								</dd>
 							</div>
 							<div class="px-3 py-2.5">
-								<dt class="section-label">Trace offset</dt>
+								<dt class="text-muted text-xs">Trace offset</dt>
 								<dd class="mt-0.5 font-mono text-xs tabular-nums">
-									{formatOffset(span.startOffsetMicros)}
+									{startOffset}
 								</dd>
 							</div>
 						</dl>
-
-						{#if dbCalls.length > 0}
-							<div class="border-line bg-base-200/50 border-t px-3 py-2.5">
-								<div class="flex items-baseline justify-between gap-3">
-									<p class="text-xs">
-										Database work
-										<span class="text-subtle ml-1">
-											{pluralize(dbCalls.length, 'operation')}
-										</span>
-									</p>
-									<p class="shrink-0 font-mono text-xs tabular-nums">
-										{formatSpanDuration(dbTotalMicros)}
-										{#if dbSharePct !== null}
-											<span class="text-subtle ml-1">{dbSharePct}%</span>
-										{/if}
-									</p>
-								</div>
-								<div
-									class="bg-base-300 mt-1.5 h-1 overflow-hidden rounded-sm"
-									role="img"
-									aria-label={`Cumulative database work ${dbSharePct ?? 0}% of span duration`}
-								>
-									<span class="bg-warning block h-full" style={`width:${dbBarPct}%`}></span>
-								</div>
-								<p class="text-subtle mt-1 text-xs">
-									Cumulative span time; concurrent work may overlap
-								</p>
-							</div>
-						{/if}
 					</div>
 				</section>
 
 				{#if subtree.length > 0}
 					<section>
 						<h3 class="section-label mb-2">Top operations</h3>
-						<div class="border-line divide-line divide-y overflow-hidden rounded-md border">
+						<div class="border-line divide-line rounded-box divide-y overflow-hidden border">
 							{#each rollups as rollup (rollup.key)}
 								<button
 									type="button"
@@ -395,13 +355,14 @@
 									<span class="flex min-w-0 items-baseline justify-between gap-3">
 										<span class="min-w-0 truncate font-mono text-xs">{rollup.name}</span>
 										<span class="shrink-0 font-mono text-xs tabular-nums">
-											{formatSpanDuration(rollup.totalMicros)}
+											{formatDurationMicros(rollup.totalMicros)}
 										</span>
 									</span>
 									<span class="mt-1.5 flex min-w-0 items-center gap-2">
 										<span
-											class="h-1.5 w-1.5 shrink-0 rounded-full"
+											class="status shrink-0"
 											style={`background-color:${serviceColor(rollup.serviceName)}`}
+											aria-hidden="true"
 										></span>
 										<span class="text-subtle min-w-0 truncate text-xs">
 											{rollup.serviceName}
@@ -421,12 +382,102 @@
 				{#if resource}
 					{@render group('Resource', toFields(resource), 'No resource attributes')}
 				{/if}
+			{:else if activeTab === 'database'}
+				<div class="flex items-baseline justify-between gap-3">
+					<p class="text-sm">{pluralize(dbCallCount, 'call')}</p>
+					<p
+						class="font-mono text-xs tabular-nums"
+						title="Sum of call durations; concurrent calls may overlap"
+					>
+						{formatDurationMicros(dbTotalMicros)}
+						{#if dbSharePct !== null}
+							<span class="text-subtle ml-1">{dbSharePct}% of span</span>
+						{/if}
+					</p>
+				</div>
+
+				{#each dbTargets as target (target.key)}
+					<section>
+						<div class="mb-2 flex items-baseline justify-between gap-3">
+							<h3 class="section-label min-w-0 truncate" title={target.host}>
+								{target.system || 'Database'}
+								{#if target.host}
+									<span class="text-subtle ml-1 font-normal">{target.host}</span>
+								{/if}
+							</h3>
+							<p class="text-subtle shrink-0 text-xs tabular-nums">
+								{pluralize(target.count, 'call')} · {formatDurationMicros(target.totalMicros)}
+							</p>
+						</div>
+
+						<div class="border-line divide-line rounded-box divide-y overflow-hidden border">
+							{#each target.queries as query (query.key)}
+								<details class="group">
+									<summary
+										class="hover:bg-base-200 flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 [&::-webkit-details-marker]:hidden"
+									>
+										<ChevronRight
+											class="text-subtle size-3.5 shrink-0 group-open:rotate-90"
+											aria-hidden="true"
+										/>
+										<span class="min-w-0 flex-1 truncate font-mono text-xs" title={query.statement}>
+											{query.statement.split('\n')[0]}
+										</span>
+										{#if query.errorCount > 0}
+											<span class="text-error shrink-0 text-xs tabular-nums">
+												{query.errorCount} failed
+											</span>
+										{/if}
+										{#if query.calls.length > 1}
+											<span class="text-subtle shrink-0 text-xs tabular-nums"
+												>×{query.calls.length}</span
+											>
+										{/if}
+										<span class="w-14 shrink-0 text-right font-mono text-xs tabular-nums">
+											{formatDurationMicros(query.totalMicros)}
+										</span>
+									</summary>
+
+									<div class="border-line border-t px-3 py-2.5">
+										<pre
+											class="bg-base-200 text-muted rounded p-2 font-mono text-xs break-words whitespace-pre-wrap">{query.statement}</pre>
+										<ol class="mt-2">
+											{#each query.calls as call (call.spanId)}
+												<li>
+													<button
+														type="button"
+														class="hover:bg-base-200 flex w-full items-center gap-3 rounded px-1.5 py-1 text-left text-xs"
+														onclick={() => onSelectSpan(call.spanId)}
+													>
+														<span class="w-16 shrink-0 font-mono tabular-nums">
+															{formatOffset(call.startOffsetMicros - span.startOffsetMicros)}
+														</span>
+														<span class="w-16 shrink-0 font-mono tabular-nums">
+															{formatDurationMicros(call.durationMicros)}
+														</span>
+														<span class="text-subtle min-w-0 flex-1 truncate">
+															{call.serviceName}
+														</span>
+														{#if call.isError}
+															<span class="text-error shrink-0">Failed</span>
+														{/if}
+													</button>
+												</li>
+											{/each}
+										</ol>
+									</div>
+								</details>
+							{/each}
+						</div>
+					</section>
+				{/each}
 			{:else if activeTab === 'events'}
 				{#if span.events.length > 0}
 					<section>
 						<h3 class="section-label mb-2">Event timeline</h3>
 
-						<ol>
+						<!-- Row-start offset lines the dot up with the card header's first text line. -->
+						<ol class="timeline timeline-vertical timeline-compact">
 							{#each span.events as event, i (i)}
 								{@const isException = event.name === 'exception'}
 								{@const stacktrace = isException ? event.fields['exception.stacktrace'] : ''}
@@ -434,20 +485,25 @@
 								{@const fields = toFields(event.fields).filter(
 									(f) => !isException || !EXCEPTION_KEYS.includes(f.name)
 								)}
-								<li class="grid grid-cols-[1.25rem_minmax(0,1fr)] gap-2.5 pb-3 last:pb-0">
-									<div class="relative flex justify-center" aria-hidden="true">
-										{#if i < span.events.length - 1}
-											<span class="bg-line absolute top-5 bottom-[-2rem] w-px"></span>
-										{/if}
-										<span
-											class={[
-												'border-base-100 relative mt-4 h-2.5 w-2.5 rounded-full border-2',
-												isException ? 'bg-error' : 'bg-base-content'
-											]}
-										></span>
-									</div>
+								{@const isLast = i === span.events.length - 1}
+								<li class="[--timeline-row-start:1rem]">
+									{#if i > 0}
+										<hr class="bg-line w-px" aria-hidden="true" />
+									{/if}
+									<div
+										class={[
+											'timeline-middle size-2 rounded-full',
+											isException ? 'bg-error' : 'bg-base-content'
+										]}
+										aria-hidden="true"
+									></div>
 
-									<article class="border-line overflow-hidden rounded-md border">
+									<article
+										class={[
+											'timeline-end border-line rounded-box m-0 ms-2.5 min-w-0 justify-self-stretch overflow-hidden border',
+											!isLast && 'mb-3'
+										]}
+									>
 										<header class="flex min-w-0 items-start justify-between gap-3 px-3 py-2.5">
 											<div class="min-w-0">
 												<h4
@@ -460,7 +516,7 @@
 													{event.name}
 												</h4>
 												{#if headline}
-													<p class="text-error/80 mt-0.5 text-xs leading-5 break-words">
+													<p class="text-error mt-0.5 text-xs leading-5 break-words">
 														{headline}
 													</p>
 												{/if}
@@ -488,10 +544,13 @@
 											<div class="border-line border-t px-3 py-2.5">
 												<p class="section-label mb-1.5">Stack trace</p>
 												<pre
-													class="bg-base-200 text-base-content/70 max-h-80 overflow-auto rounded p-2 font-mono text-xs whitespace-pre">{stacktrace}</pre>
+													class="bg-base-200 text-muted max-h-80 overflow-auto rounded p-2 font-mono text-xs whitespace-pre">{stacktrace}</pre>
 											</div>
 										{/if}
 									</article>
+									{#if !isLast}
+										<hr class="bg-line w-px" aria-hidden="true" />
+									{/if}
 								</li>
 							{/each}
 						</ol>

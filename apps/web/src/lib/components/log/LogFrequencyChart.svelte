@@ -2,7 +2,6 @@
 	import type uPlotLib from 'uplot';
 
 	import { ChevronDown, ChevronRight } from 'lucide-svelte';
-	import { slide } from 'svelte/transition';
 
 	import BreakdownPicker from '$lib/components/log/BreakdownPicker.svelte';
 	import UplotChart from '$lib/components/ui/uplot/UplotChart.svelte';
@@ -12,7 +11,7 @@
 	import { formatCount } from '$lib/utils/format';
 	import { formatInterval, OTHER_VALUES } from '$lib/utils/histogram';
 	import { sortBySeverity } from '$lib/utils/severity';
-	import { formatChartDate, formatChartTime, formatChartTooltip } from '$lib/utils/time';
+	import { formatTickDate, formatTooltipDate } from '$lib/utils/time';
 
 	type Props = {
 		buckets: HistogramBucket[];
@@ -40,7 +39,6 @@
 		onBreakdownValue
 	}: Props = $props();
 
-	const SECONDS_PER_DAY = 86400;
 	const HEIGHT = 150;
 	/**
 	 * The chart ramp minus `--chart-1`: that slot is `secondary` (near-black dark green), which
@@ -161,7 +159,6 @@
 
 		const timestamps = columnarData?.uplot[0] ?? [];
 		const span = timestamps.length > 1 ? timestamps[timestamps.length - 1] - timestamps[0] : 0;
-		const useDate = span > SECONDS_PER_DAY;
 		const halfBucket = (timestamps.length > 1 ? timestamps[1] - timestamps[0] : 1) / 2;
 
 		const axisStroke = baseContentAt(0.65);
@@ -198,8 +195,7 @@
 					gap: 2,
 					size: 20,
 					space: 120,
-					values: (_u, splits) =>
-						splits.map((v) => (useDate ? formatChartDate(v) : formatChartTime(v)))
+					values: (_u, splits) => splits.map((v) => formatTickDate(v * 1000, span * 1000))
 				},
 				{
 					stroke: axisStroke,
@@ -225,9 +221,9 @@
 			onclick={() => (collapsed = !collapsed)}
 		>
 			{#if collapsed}
-				<ChevronRight class="text-base-content/40 h-2.5 w-2.5" />
+				<ChevronRight class="text-subtle size-3" aria-hidden="true" />
 			{:else}
-				<ChevronDown class="text-base-content/40 h-2.5 w-2.5" />
+				<ChevronDown class="text-subtle size-3" aria-hidden="true" />
 			{/if}
 			<span class="section-label text-left"> Frequency </span>
 		</button>
@@ -238,7 +234,7 @@
 					<span class="loading loading-spinner loading-xs mr-1"></span>
 				{/if}
 				{#if bucketWidthLabel}
-					<span class="text-base-content/80">{bucketWidthLabel}</span>
+					<span class="text-base-content">{bucketWidthLabel}</span>
 					<span>buckets</span>
 				{/if}
 			</div>
@@ -246,11 +242,11 @@
 	</div>
 
 	{#if !collapsed}
-		<div transition:slide={{ duration: 200 }}>
-			<div class="px-2 pb-2">
+		<div>
+			<div class="px-2">
 				{#if error}
 					<div class="flex h-[150px] items-center justify-center">
-						<p class="text-error/80 text-xs">{error}</p>
+						<p class="text-error text-xs">{error}</p>
 					</div>
 				{:else if loading}
 					<div class="flex h-[150px] items-center justify-center">
@@ -268,7 +264,7 @@
 							<UplotChart data={columnarData.uplot} height={HEIGHT} {makeOpts}>
 								{#snippet tooltip(idx)}
 									<div class="text-muted mb-1 text-xs tabular-nums">
-										{formatChartTooltip(columnarData.uplot[0][idx])}
+										{formatTooltipDate(columnarData.uplot[0][idx] * 1000)}
 									</div>
 									{#each seriesKeys as key, i (key)}
 										{@const count = columnarData.rawSeries[i][idx]}
@@ -278,7 +274,7 @@
 													class="inline-block h-2 w-2 rounded-sm"
 													style="background-color: {seriesColors[key]}"
 												></span>
-												<span class="text-base-content/80">{seriesLabel(key)}</span>
+												<span class="text-base-content">{seriesLabel(key)}</span>
 												<span class="text-base-content ml-auto font-mono"
 													>{count.toLocaleString()}</span
 												>

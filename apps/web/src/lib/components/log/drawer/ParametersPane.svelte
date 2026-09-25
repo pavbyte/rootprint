@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { ChevronDown, Copy } from 'lucide-svelte';
+	import { ChevronDown } from 'lucide-svelte';
 
+	import CopyButton from '$lib/components/ui/CopyButton.svelte';
 	import FieldRow from '$lib/components/ui/FieldRow.svelte';
 	import SearchInput from '$lib/components/ui/SearchInput.svelte';
 	import type { FieldGroup, FieldGroupId } from '$lib/utils/hit-fields';
 	import { groupHitFields } from '$lib/utils/hit-fields';
-	import { copyWithToast } from '$lib/utils/clipboard';
 	import type { FieldRowData, LogHit } from '$lib/types';
 	import type { SearchStore } from '$lib/stores/search.svelte';
 
@@ -63,14 +63,6 @@
 	function applyFilter(field: FieldRowData, negate: boolean) {
 		store.addFilter(field.name, field.value, negate);
 	}
-
-	function copyValue(field: FieldRowData) {
-		void copyWithToast(field.value, 'Value copied');
-	}
-
-	function copyMessage(): void {
-		void copyWithToast(grouped.message, 'Message copied');
-	}
 </script>
 
 <div class="h-full overflow-x-hidden overflow-y-auto">
@@ -78,19 +70,17 @@
 		<div class="mb-1.5 flex items-center justify-between gap-3">
 			<p class="section-label">{grouped.messageLabel}</p>
 			{#if grouped.message !== ''}
-				<button
-					type="button"
+				<CopyButton
+					text={grouped.message}
 					class="btn btn-ghost btn-xs gap-1"
 					aria-label="Copy log message"
-					onclick={copyMessage}
 				>
-					<Copy class="h-3 w-3" aria-hidden="true" />
 					Copy
-				</button>
+				</CopyButton>
 			{/if}
 		</div>
 		<div
-			class="border-line rounded-md border p-3 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap"
+			class="border-line rounded-box border p-3 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap"
 		>
 			{#if grouped.message === ''}
 				<span class="text-subtle font-sans text-xs">(no message)</span>
@@ -130,20 +120,18 @@
 							aria-controls={`drawer-group-${group.id}`}
 							onclick={() => toggle(group.id)}
 						>
-							<span class="inline-flex transition-transform" class:-rotate-90={isCollapsed}>
-								<ChevronDown class="text-base-content/50 h-3 w-3" />
+							<span class="inline-flex" class:-rotate-90={isCollapsed}>
+								<ChevronDown class="text-subtle size-3" aria-hidden="true" />
 							</span>
 							<p class="section-label">{group.label}</p>
-							<span class="bg-base-300 text-muted rounded-sm px-1.5 py-0.5 text-xs tabular-nums"
-								>{group.fields.length}</span
-							>
+							<span class="badge badge-sm badge-ghost tabular-nums">{group.fields.length}</span>
 						</button>
 					{/if}
 
 					{#if !isCollapsed}
 						<div
 							id={`drawer-group-${group.id}`}
-							class="border-line overflow-hidden rounded-md border"
+							class="border-line rounded-box overflow-hidden border"
 						>
 							<table class="w-full table-fixed border-collapse">
 								<tbody>
@@ -152,7 +140,7 @@
 											{field}
 											onFilterFor={(f) => applyFilter(f, false)}
 											onFilterOut={(f) => applyFilter(f, true)}
-											onCopy={copyValue}
+											copyable
 										/>
 									{/each}
 								</tbody>

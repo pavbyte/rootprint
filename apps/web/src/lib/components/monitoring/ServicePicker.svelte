@@ -5,11 +5,13 @@
 	let {
 		services,
 		value,
-		onChange
+		onChange,
+		showLabel = true
 	}: {
 		services: string[];
 		value: string | null;
 		onChange: (service: string) => void;
+		showLabel?: boolean;
 	} = $props();
 
 	const dd = $props.id();
@@ -82,7 +84,7 @@
 </script>
 
 <div class="grid w-fit min-w-0 gap-1.5">
-	<span id={`${dd}-label`} class="text-muted text-xs">Service</span>
+	<span id={`${dd}-label`} class={showLabel ? 'text-muted text-xs' : 'sr-only'}>Service</span>
 	<button
 		type="button"
 		popovertarget={dd}
@@ -93,7 +95,7 @@
 		aria-expanded={open}
 	>
 		<span class="truncate">{label}</span>
-		<ChevronDown class="size-3 shrink-0 opacity-60" aria-hidden="true" />
+		<ChevronDown class="text-muted size-3 shrink-0" aria-hidden="true" />
 	</button>
 </div>
 
@@ -103,11 +105,11 @@
 	id={dd}
 	style="position-anchor:--{dd}"
 	ontoggle={onToggle}
-	class="dropdown border-line rounded-box bg-base-100 mt-1 w-64 border"
+	class="dropdown border-line rounded-box bg-base-100 mt-1 w-64 border shadow-lg"
 >
 	<div class="border-line border-b p-2">
 		<label class="input input-sm w-full">
-			<Search class="size-3.5 opacity-60" aria-hidden="true" />
+			<Search class="text-muted size-3.5" aria-hidden="true" />
 			<input
 				bind:this={searchEl}
 				bind:value={query}

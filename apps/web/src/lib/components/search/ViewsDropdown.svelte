@@ -258,9 +258,9 @@
 	style="anchor-name:--{dd}"
 	class="btn btn-sm btn-ghost"
 >
-	<Layers class="h-3.5 w-3.5" />
+	<Layers class="size-3.5" aria-hidden="true" />
 	Views
-	<ChevronDown class="h-3 w-3 opacity-60" />
+	<ChevronDown class="text-muted size-3" aria-hidden="true" />
 </button>
 
 <div
@@ -269,7 +269,7 @@
 	id={dd}
 	style="position-anchor:--{dd}"
 	ontoggle={onToggle}
-	class="dropdown border-line bg-base-100 mt-1 flex w-80 flex-col rounded-lg border shadow-lg"
+	class="dropdown border-line bg-base-100 rounded-box mt-1 flex w-80 flex-col border shadow-lg"
 >
 	{#if panel === 'list'}
 		<div class="border-line flex items-center gap-2 border-b p-2">
@@ -281,7 +281,7 @@
 				title="Save current search as view"
 				onclick={() => openNewForm()}
 			>
-				<Plus class="h-4 w-4" />
+				<Plus class="size-3.5" aria-hidden="true" />
 			</button>
 		</div>
 
@@ -290,7 +290,7 @@
 				<p class="text-error border-line border-b px-3 py-2 text-xs">{error}</p>
 			{/if}
 			{#if loading && items.length === 0}
-				<div class="text-base-content/60 flex h-24 items-center justify-center gap-2 text-xs">
+				<div class="text-muted flex h-24 items-center justify-center gap-2 text-xs">
 					<span class="loading loading-spinner loading-xs"></span>
 					Loading…
 				</div>
@@ -303,21 +303,21 @@
 				</div>
 			{:else if items.length === 0}
 				<div class="flex h-full flex-col items-center justify-center gap-2 p-3 text-center">
-					<p class="text-base-content/60 text-xs">No views yet</p>
+					<p class="text-muted text-xs">No views yet</p>
 					<button type="button" class="btn btn-ghost btn-xs" onclick={() => openNewForm()}>
-						<Plus class="h-3.5 w-3.5" />
+						<Plus class="size-3" aria-hidden="true" />
 						Save current search
 					</button>
 				</div>
 			{:else if filtered.length === 0}
 				<div class="flex h-full flex-col items-center justify-center gap-2 p-3 text-center">
-					<p class="text-base-content/60 text-xs">No matches.</p>
+					<p class="text-muted text-xs">No matches.</p>
 					<button
 						type="button"
 						class="btn btn-ghost btn-xs"
 						onclick={() => openNewForm(filterText)}
 					>
-						<Plus class="h-3.5 w-3.5" />
+						<Plus class="size-3" aria-hidden="true" />
 						Save as "{filterText}"
 					</button>
 				</div>
@@ -350,7 +350,7 @@
 										title="Update with current search"
 										onclick={() => openOverwriteModal(item)}
 									>
-										<RefreshCw class="h-3.5 w-3.5" />
+										<RefreshCw class="size-3" aria-hidden="true" />
 									</button>
 									<button
 										type="button"
@@ -359,7 +359,7 @@
 										title="Rename"
 										onclick={() => openEditForm(item)}
 									>
-										<Pencil class="h-3.5 w-3.5" />
+										<Pencil class="size-3" aria-hidden="true" />
 									</button>
 									<button
 										type="button"
@@ -368,7 +368,7 @@
 										title="Delete"
 										onclick={() => openDeleteModal(item)}
 									>
-										<Trash2 class="h-3.5 w-3.5" />
+										<Trash2 class="size-3" aria-hidden="true" />
 									</button>
 								</div>
 							</div>
@@ -383,9 +383,10 @@
 				type="button"
 				class="btn btn-ghost btn-xs btn-square"
 				aria-label="Back to list"
+				title="Back to list"
 				onclick={backToList}
 			>
-				<ArrowLeft class="h-3.5 w-3.5" />
+				<ArrowLeft class="size-3" aria-hidden="true" />
 			</button>
 			<p class="section-label truncate">
 				{editing ? 'Rename view' : 'New view'}
@@ -408,7 +409,7 @@
 			{/if}
 
 			{#if !editing}
-				<p class="text-base-content/60 text-xs">
+				<p class="text-muted text-xs">
 					Saves the current query, filters, sort direction, columns, and chart breakdown.
 				</p>
 				<label class="text-muted flex items-center gap-1.5 text-xs">
@@ -440,7 +441,7 @@
 	onConfirm={confirmDelete}
 >
 	{#snippet message()}
-		Delete <span class="font-semibold">{toDelete?.name}</span>? This can't be undone.
+		Delete <span class="font-medium">{toDelete?.name}</span>? This can't be undone.
 	{/snippet}
 </ConfirmModal>
 
@@ -453,7 +454,7 @@
 	onConfirm={confirmOverwrite}
 >
 	{#snippet message()}
-		Overwrite <span class="font-semibold">{toOverwrite?.name}</span> with the current search? Its saved
+		Overwrite <span class="font-medium">{toOverwrite?.name}</span> with the current search? Its saved
 		settings will be replaced.
 	{/snippet}
 </ConfirmModal>

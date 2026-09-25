@@ -1,6 +1,13 @@
 <script lang="ts">
-	import { ERROR_PAGE_SIZE, MAX_ERROR_OFFSET } from 'api/constants';
-	import { ExternalLink } from 'lucide-svelte';
+	import {
+		ERROR_HTTP_STATUS_CLAUSES,
+		ERROR_KIND_CLAUSES,
+		ERROR_PAGE_SIZE,
+		MAX_ERROR_OFFSET
+	} from 'api/constants';
+	import { ChartNoAxesGantt, ExternalLink } from 'lucide-svelte';
+
+	import { page } from '$app/state';
 
 	import {
 		getServiceErrors,
@@ -14,8 +21,8 @@
 	import { RequestGuard } from '$lib/stores/request-guard';
 	import { formatCount, formatDurationMs } from '$lib/utils/format';
 	import { readLastIndex } from '$lib/utils/last-index';
-	import { formatEpochMillis } from '$lib/utils/time';
-	import { traceDetailHref } from '$lib/utils/trace-params';
+	import { formatTimestamp } from '$lib/utils/time';
+	import { exploreHref, traceDetailHref } from '$lib/utils/trace-params';
 
 	type Props = {
 		operations: ServiceHealthFailingOperation[];
@@ -81,6 +88,17 @@
 		operation === null || operations.some((candidate) => candidate.name === operation)
 	);
 	const scope = $derived({ service, startTs, endTs, operation, kind, httpStatus });
+	// The explorer has no kind or HTTP filter, so those ride along in its query box.
+	const tracesHref = $derived(
+		exploreHref(page.url, {
+			service,
+			operation,
+			status: 'error',
+			q: [kind && ERROR_KIND_CLAUSES[kind], httpStatus && ERROR_HTTP_STATUS_CLAUSES[httpStatus]]
+				.filter(Boolean)
+				.join(' AND ')
+		})
+	);
 
 	function appendRows(newRows: ServiceErrorRow[]): void {
 		const fresh = newRows.filter((row) => {
@@ -175,6 +193,9 @@
 					<option value="none">No HTTP status</option>
 				</select>
 			</label>
+			<a class="btn btn-xs" href={tracesHref}>
+				<ChartNoAxesGantt class="size-3" aria-hidden="true" />Open in Traces
+			</a>
 		</div>
 	</div>
 
@@ -185,7 +206,7 @@
 				type="button"
 				class="border-line rounded border px-2 py-0.5 text-xs transition-colors {operation === null
 					? 'bg-base-content text-base-100'
-					: 'text-base-content/70 hover:bg-base-200'}"
+					: 'text-muted hover:bg-base-200'}"
 				aria-pressed={operation === null}
 				onclick={() => onFilterChange('operation', null)}
 			>
@@ -208,13 +229,15 @@
 					class="border-line inline-flex max-w-48 items-center rounded border px-2 py-0.5 font-mono text-xs transition-colors {operation ===
 					op.name
 						? 'bg-base-content text-base-100'
-						: 'text-base-content/70 hover:bg-base-200'}"
+						: 'text-muted hover:bg-base-200'}"
 					aria-pressed={operation === op.name}
 					title={op.name}
 					onclick={() => onFilterChange('operation', operation === op.name ? null : op.name)}
 				>
 					<span class="truncate">{op.name}</span>
-					<span class="ml-1 shrink-0 tabular-nums opacity-60">{formatCount(op.errors)}</span>
+					<span class={['ml-1 shrink-0 tabular-nums', operation !== op.name && 'text-muted']}
+						>{formatCount(op.errors)}</span
+					>
 				</button>
 			{/each}
 		</div>
@@ -251,13 +274,17 @@
 				</div>
 				{#each rows as row (row.traceId + row.spanId)}
 					<a
-						href={traceDetailHref(row.traceId, { index: logIndex, span: row.spanId })}
+						href={traceDetailHref(row.traceId, {
+							index: logIndex,
+							span: row.spanId,
+							returnTo: page.url
+						})}
 						target="_blank"
 						rel="noopener"
 						class="hover:bg-base-200/60 grid {columns} items-center gap-3 px-4 py-2 transition-colors"
 					>
 						<span class="text-muted font-mono text-xs tabular-nums"
-							>{formatEpochMillis(row.timestampMs)}</span
+							>{formatTimestamp(row.timestampMs)}</span
 						>
 						{#if showService}
 							<span class="truncate font-mono text-xs" title={row.service}>{row.service}</span>
@@ -285,7 +312,7 @@
 						<span class="text-right text-xs tabular-nums"
 							>{formatDurationMs(row.durationMillis)}</span
 						>
-						<ExternalLink class="text-base-content/30 h-3 w-3" aria-hidden="true" />
+						<ExternalLink class="text-subtle size-3" aria-hidden="true" />
 						<span class="sr-only">Open trace {row.traceId} in a new tab</span>
 					</a>
 				{/each}

@@ -9,7 +9,7 @@
 	import PageHeader from '$lib/components/ui/PageHeader.svelte';
 	import PanelError from '$lib/components/ui/PanelError.svelte';
 	import type { Window } from '$lib/utils/time-range';
-	import { formatDurationMs } from '$lib/utils/format';
+	import { formatCount, formatDurationMs } from '$lib/utils/format';
 	import { setSearchParam } from '$lib/utils/search-params';
 
 	let { data } = $props();
@@ -29,10 +29,10 @@
 	{#snippet apiKeyActor(id: string, label: string | null)}
 		<div class="flex min-w-0 items-center gap-2">
 			<span
-				class="bg-base-200 text-base-content/60 flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
+				class="bg-base-200 text-muted flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
 				aria-hidden="true"
 			>
-				<KeyRound class="h-3.5 w-3.5" />
+				<KeyRound class="size-3.5" aria-hidden="true" />
 			</span>
 			<span class="truncate text-sm">{label ?? id}</span>
 		</div>
@@ -84,7 +84,7 @@
 									{@render apiKeyActor(r.id, r.label)}
 								{/if}
 							</span>
-							<span class="text-right tabular-nums">{r.count.toLocaleString()}</span>
+							<span class="text-right tabular-nums">{formatCount(r.count)}</span>
 							<span class="text-right whitespace-nowrap tabular-nums">
 								{formatDurationMs(r.avgDurationMs)}
 							</span>

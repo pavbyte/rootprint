@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { ERROR_HTTP_STATUSES, SPAN_KINDS } from 'api/constants';
+	import { ChartNoAxesGantt } from 'lucide-svelte';
 
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -20,6 +21,8 @@
 	import TimeRangePicker from '$lib/components/ui/TimeRangePicker.svelte';
 	import type { TimeRange } from '$lib/types';
 	import { formatCount } from '$lib/utils/format';
+	import { paramOneOf, setTimeRangeParams } from '$lib/utils/query-params';
+	import { exploreHref } from '$lib/utils/trace-params';
 
 	let { data } = $props();
 
@@ -31,10 +34,6 @@
 	type DetailTab = { id: DetailView; label: string; count?: string; error?: boolean };
 
 	const DETAIL_VIEWS = ['services', 'endpoints', 'dependencies', 'errors'] as const;
-
-	function paramOneOf<T extends string>(value: string | null, options: readonly T[]): T | null {
-		return options.includes(value as T) ? (value as T) : null;
-	}
 
 	const activeView = $derived(
 		paramOneOf(page.url.searchParams.get('view'), DETAIL_VIEWS) ?? 'overview'
@@ -76,15 +75,7 @@
 	}
 
 	function setRange(next: TimeRange) {
-		navigate((params) => {
-			params.delete('to');
-			if (next.type === 'relative') {
-				params.set('from', next.preset);
-			} else {
-				params.set('from', String(next.start));
-				params.set('to', String(next.end));
-			}
-		});
+		navigate((params) => setTimeRangeParams(params, next));
 	}
 
 	function setService(value: string) {
@@ -152,8 +143,8 @@
 {#snippet pageHeader(serviceNames: string[] | null)}
 	<header class="flex flex-wrap items-end justify-between gap-4">
 		<div class="min-w-0">
-			<p class="eyebrow">Services</p>
-			<h1 class="mt-0.5 truncate text-2xl tracking-tight" title={data.service ?? 'All services'}>
+			<p class="section-label">Services</p>
+			<h1 class="text-h3 mt-0.5 truncate" title={data.service ?? 'All services'}>
 				{data.service ?? 'All services'}
 			</h1>
 		</div>
@@ -162,6 +153,9 @@
 				<ServicePicker services={serviceNames} value={data.service} onChange={setService} />
 			{/if}
 			<TimeRangePicker value={data.timeRange} onChange={setRange} />
+			<a class="btn btn-sm" href={exploreHref(page.url, { service: data.service })}>
+				<ChartNoAxesGantt class="size-3.5" aria-hidden="true" />View traces
+			</a>
 		</div>
 	</header>
 {/snippet}

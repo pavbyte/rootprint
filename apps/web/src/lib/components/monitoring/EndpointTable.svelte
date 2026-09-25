@@ -2,7 +2,8 @@
 	import type { ServiceHealthEndpoint } from '$lib/api/monitoring';
 	import EmptyPanel from '$lib/components/ui/EmptyPanel.svelte';
 	import RowLimitSelector from '$lib/components/ui/RowLimitSelector.svelte';
-	import { formatDurationMs } from '$lib/utils/format';
+	import TracesLink from '$lib/components/ui/TracesLink.svelte';
+	import { formatCount, formatDurationMs } from '$lib/utils/format';
 	import { readString, writeString } from '$lib/utils/safe-storage';
 
 	type Props = {
@@ -53,11 +54,12 @@
 						<th scope="col" class="text-right">p50 latency</th>
 						<th scope="col" class="text-right">p95 latency</th>
 						<th scope="col" class="text-right">Total time</th>
+						<th scope="col" class="w-8"><span class="sr-only">Traces</span></th>
 					</tr>
 				</thead>
 				<tbody>
 					{#each rows as endpoint, index (endpoint.id)}
-						<tr class="border-line/40 even:bg-base-200/50 border-b last:border-b-0">
+						<tr class="border-line border-b last:border-b-0">
 							<td class="w-10 text-right tabular-nums">
 								{index + 1}
 							</td>
@@ -79,7 +81,7 @@
 									</div>
 								{/if}
 							</td>
-							<td class="text-right tabular-nums">{endpoint.requests.toLocaleString()}</td>
+							<td class="text-right tabular-nums">{formatCount(endpoint.requests)}</td>
 							<td class="text-right whitespace-nowrap tabular-nums">
 								{formatDurationMs(endpoint.p50)}
 							</td>
@@ -88,6 +90,16 @@
 							</td>
 							<td class="text-right font-medium whitespace-nowrap tabular-nums">
 								{formatDurationMs(endpoint.totalMillis)}
+							</td>
+							<td class="w-8 text-right">
+								<TracesLink
+									filters={{
+										service: endpoint.service,
+										operation: endpoint.operation,
+										q: endpoint.query
+									}}
+									subject={endpoint.name}
+								/>
 							</td>
 						</tr>
 					{/each}

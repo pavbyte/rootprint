@@ -13,7 +13,7 @@
 		VolumeBuckets
 	} from '$lib/api/activity';
 	import type { Window } from '$lib/utils/time-range';
-	import { formatDurationMs } from '$lib/utils/format';
+	import { formatCount, formatDurationMs, formatOrDash } from '$lib/utils/format';
 	import { formatActivityTimestamp } from '$lib/utils/time';
 	import PanelError from '$lib/components/ui/PanelError.svelte';
 
@@ -33,7 +33,7 @@
 
 <div class="flex flex-col gap-4">
 	<div class="flex items-center justify-between">
-		<p class="eyebrow">Activity</p>
+		<p class="section-label">Activity</p>
 		<TimeRangeTabs value={window} onChange={(w: Window) => onSetParam('window', w)} />
 	</div>
 
@@ -76,7 +76,7 @@
 					{#each rows as r (r.indexId)}
 						<div class="col-span-full grid grid-cols-subgrid items-center px-4 py-3.5 text-sm">
 							<span class="min-w-0 truncate">{r.indexId}</span>
-							<span class="text-right tabular-nums">{r.count.toLocaleString()}</span>
+							<span class="text-right tabular-nums">{formatCount(r.count)}</span>
 							<span class="text-right whitespace-nowrap tabular-nums">
 								{formatDurationMs(r.avgDurationMs)}
 							</span>
@@ -109,7 +109,7 @@
 				</div>
 				{#each rec.rows as r (r.id)}
 					<div class="col-span-full grid grid-cols-subgrid items-center px-4 py-3.5 text-sm">
-						<span class="text-base-content/60 font-mono text-xs whitespace-nowrap">
+						<span class="text-muted font-mono text-xs whitespace-nowrap">
 							{formatActivityTimestamp(r.executedAt)}
 						</span>
 						<span class="min-w-0 truncate text-center">{r.indexId}</span>
@@ -117,7 +117,7 @@
 							{formatDurationMs(r.durationMs)}
 						</span>
 						<span class="text-center tabular-nums">
-							{r.numHits === null ? '—' : r.numHits.toLocaleString()}
+							{formatOrDash(r.numHits, formatCount)}
 						</span>
 						<span class="min-w-0 truncate">
 							{r.query.length > 80 ? r.query.slice(0, 80) + '…' : r.query}
@@ -126,7 +126,7 @@
 				{/each}
 			</ListCard>
 			<div class="flex items-center justify-between pt-1 text-xs">
-				<span class="text-base-content/60">
+				<span class="text-muted">
 					{Math.min(offset + rec.rows.length, rec.total).toLocaleString()} / {rec.total.toLocaleString()}
 				</span>
 				<div class="flex gap-2">

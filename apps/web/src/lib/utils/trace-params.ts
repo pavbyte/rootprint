@@ -1,10 +1,15 @@
-/**
- * The one way to link a trace, used by the log query box and the log drawer.
- * `index` names the log index the trace's span→log links should target; null renders the trace with
- * those links disabled. `span` preselects a span in the waterfall, so a row that matched a query opens
- * on the span that matched rather than on the root. `returnTo` goes through URLSearchParams because
- * the explorer URL carries `&`.
- */
+import type { ExploreStatus } from 'api/constants';
+
+export type TraceOrigin = 'traces' | 'monitoring' | 'search';
+
+/** The page a trace was opened from, by its `returnTo`; anything else is a log search. */
+export function traceOrigin(returnTo: string | null): TraceOrigin {
+	if (returnTo?.startsWith('/traces')) return 'traces';
+	if (returnTo?.startsWith('/monitoring')) return 'monitoring';
+	return 'search';
+}
+
+/** `index` is the log index for span→log links; null disables them. */
 export function traceDetailHref(
 	traceId: string,
 	opts: {
@@ -22,4 +27,19 @@ export function traceDetailHref(
 	const query = params.toString();
 	const path = `/traces/${encodeURIComponent(traceId)}`;
 	return query ? `${path}?${query}` : path;
+}
+
+export type ExploreLinkFilters = Partial<Record<'service' | 'operation' | 'q', string | null>> & {
+	status?: ExploreStatus;
+};
+
+export function exploreHref(current: URL, filters: ExploreLinkFilters): string {
+	const params = new URLSearchParams();
+	for (const key of ['from', 'to']) {
+		const value = current.searchParams.get(key);
+		if (value !== null) params.set(key, value);
+	}
+	for (const [key, value] of Object.entries(filters)) if (value) params.set(key, value);
+	const query = params.toString();
+	return query ? `/traces?${query}` : '/traces';
 }

@@ -1,7 +1,5 @@
 <script lang="ts">
-	import { Copy } from 'lucide-svelte';
-
-	import { copyWithToast } from '$lib/utils/clipboard';
+	import CopyButton from '$lib/components/ui/CopyButton.svelte';
 	import { highlightCode } from '$lib/utils/code-highlight';
 	import { pluralize } from '$lib/utils/format';
 	import { resolveEmbeddedJson } from '$lib/utils/resolve-embedded-json';
@@ -29,15 +27,11 @@
 			cancelled = true;
 		};
 	});
-
-	function copyAll() {
-		void copyWithToast(pretty, 'JSON copied');
-	}
 </script>
 
 <div class="flex h-full min-h-0 flex-col p-3">
 	<div
-		class="border-line bg-base-200/50 relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border"
+		class="border-line bg-base-200/50 rounded-box relative flex min-h-0 flex-1 flex-col overflow-hidden border"
 	>
 		<div class="border-line bg-base-200 flex items-center justify-between border-b px-3 py-1.5">
 			<div class="flex items-center gap-2">
@@ -46,22 +40,20 @@
 					{pluralize(lineCount, 'line')}
 				</span>
 			</div>
-			<button
-				type="button"
+			<CopyButton
+				text={pretty}
 				class="btn btn-ghost btn-xs gap-1"
 				aria-label="Copy JSON"
 				title="Copy JSON"
-				onclick={copyAll}
 			>
-				<Copy class="h-3 w-3" aria-hidden="true" />
 				Copy
-			</button>
+			</CopyButton>
 		</div>
 		<div class="json-pane min-h-0 flex-1 overflow-auto px-3 py-2 text-xs leading-relaxed">
 			{#if html}
 				{@html html}
 			{:else}
-				<pre class="text-base-content/60 font-mono">{pretty}</pre>
+				<pre class="text-muted font-mono">{pretty}</pre>
 			{/if}
 		</div>
 	</div>

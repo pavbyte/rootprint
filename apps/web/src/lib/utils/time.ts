@@ -1,23 +1,8 @@
 import { format, formatDistanceToNow, getUnixTime, isValid, parse, parseISO } from 'date-fns';
 
-/** "HH:MM" */
-export function formatChartTime(tsSec: number): string {
-	return format(tsSec * 1000, 'HH:mm');
-}
-
-/** "MM-DD HH:MM" */
-export function formatChartDate(tsSec: number): string {
-	return format(tsSec * 1000, 'MM-dd HH:mm');
-}
-
-/** "YYYY-MM-DD HH:MM:SS" */
-export function formatChartTooltip(tsSec: number): string {
-	return format(tsSec * 1000, 'yyyy-MM-dd HH:mm:ss');
-}
-
-/** "YYYY-MM-DD HH:MM:SS.SSS" — used in the log row timestamp column. */
-export function formatLogRowTimestamp(iso: string): string {
-	const d = parseISO(iso);
+/** "YYYY-MM-DD HH:MM:SS.SSS" from an ISO string or epoch milliseconds — log and span timestamps. */
+export function formatTimestamp(input: string | number): string {
+	const d = typeof input === 'string' ? parseISO(input) : new Date(input);
 	return isValid(d) ? format(d, 'yyyy-MM-dd HH:mm:ss.SSS') : '—';
 }
 
@@ -40,11 +25,10 @@ export function formatDate(input: string | Date): string {
 	return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
 }
 
-/** "Jun 10, 2026, 3:45 PM" — locale-aware date + time. */
+/** "YYYY-MM-DD HH:MM" */
 export function formatDateTime(input: string | Date): string {
 	const d = typeof input === 'string' ? parseISO(input) : input;
-	if (!isValid(d)) return '—';
-	return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+	return isValid(d) ? format(d, 'yyyy-MM-dd HH:mm') : '—';
 }
 
 export function parseLocalDateTime(dateStr: string, timeStr: string): number | null {
@@ -53,29 +37,10 @@ export function parseLocalDateTime(dateStr: string, timeStr: string): number | n
 }
 
 export function formatTickDate(d: Date | number, spanMs: number): string {
-	const date = d instanceof Date ? d : new Date(d);
 	const oneDay = 24 * 60 * 60 * 1000;
-	return spanMs <= oneDay ? format(date, 'HH:mm') : format(date, 'MMM d');
+	return spanMs <= oneDay ? format(d, 'HH:mm') : format(d, 'MM-dd HH:mm');
 }
 
 export function formatTooltipDate(d: Date | number): string {
-	const date = d instanceof Date ? d : new Date(d);
-	return format(date, 'yyyy-MM-dd HH:mm');
-}
-
-export function formatSpanDuration(micros: number): string {
-	if (micros === 0) return '<1µs';
-	if (micros < 1_000) return `${micros}µs`;
-	const millis = micros / 1_000;
-	if (Number(millis.toFixed(1)) < 1_000) return `${millis.toFixed(1)}ms`;
-	return `${(micros / 1_000_000).toFixed(2)}s`;
-}
-
-export function formatSpanStart(micros: number): string {
-	return format(new Date(micros / 1000), 'yyyy-MM-dd HH:mm:ss.SSS');
-}
-
-/** "YYYY-MM-DD HH:MM:SS" — epoch milliseconds, second precision, used in the failing-spans list. */
-export function formatEpochMillis(ms: number): string {
-	return format(ms, 'yyyy-MM-dd HH:mm:ss');
+	return format(d, 'yyyy-MM-dd HH:mm:ss');
 }

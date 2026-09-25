@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Copy, ExternalLink, GripVertical } from 'lucide-svelte';
+	import { ExternalLink, GripVertical, RotateCw } from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
 
 	import { page } from '$app/state';
@@ -9,16 +9,18 @@
 	import JsonPane from './drawer/JsonPane.svelte';
 	import ParametersPane from './drawer/ParametersPane.svelte';
 	import TracebackPane from './drawer/TracebackPane.svelte';
+	import SpanDetailPane from '$lib/components/trace/SpanDetailPane.svelte';
+	import CopyButton from '$lib/components/ui/CopyButton.svelte';
 	import TracePane from '$lib/components/trace/TracePane.svelte';
-	import { TraceResource } from '$lib/components/trace/trace-resource.svelte';
+	import { buildTraceModel } from '$lib/components/trace/trace-model';
+	import { fetchTrace } from '$lib/api/traces';
 	import { createShare } from '$lib/api/shares';
 	import { ApiError } from '$lib/api/errors';
-	import { copyWithToast } from '$lib/utils/clipboard';
 	import { getByPath } from '$lib/utils/get-by-path';
 	import { readString, removeKey, writeString } from '$lib/utils/safe-storage';
 	import { traceDetailHref } from '$lib/utils/trace-params';
 	import { isTraceId } from 'api/schemas';
-	import type { LogHit } from '$lib/types';
+	import type { LogHit, TraceModel } from '$lib/types';
 	import type { SearchStore } from '$lib/stores/search.svelte';
 
 	const MAX_SHARE_PAYLOAD_BYTES = 64 * 1024;
@@ -71,23 +73,26 @@
 		const path = store.fieldConfig?.traceIdField;
 		if (!path || !hit) return null;
 		const v = getByPath(hit.raw, path);
-		return isTraceId(v) ? v : null;
+		const id = typeof v === 'string' ? v.toLowerCase() : v;
+		return isTraceId(id) ? id : null;
 	});
-	let traceResource = $state.raw<TraceResource | null>(null);
+	let selectedSpanId = $state<string | null>(null);
+	let traceLoad = $state.raw<{ traceId: string; model: Promise<TraceModel> } | null>(null);
 
+	function loadTrace(id: string): void {
+		const model = fetchTrace(id).then(buildTraceModel);
+		// A superseded load is no longer awaited, so its rejection would go unhandled.
+		model.catch(() => {});
+		traceLoad = { traceId: id, model };
+	}
+
+	// Only once the tab opens: each fetch is a span search plus an audit row.
 	$effect(() => {
-		const id = traceId;
-		if (id === null) return;
-		const r = new TraceResource(id);
-		traceResource = r;
-		void r.load();
-		return () => {
-			r.dispose();
-			traceResource = null;
-		};
+		if (activeTab === 'trace' && traceId !== null && traceLoad?.traceId !== traceId) {
+			loadTrace(traceId);
+		}
 	});
 
-	let sharing = $state(false);
 	let dialogRef: HTMLDivElement | null = $state(null);
 	let previousFocus: HTMLElement | null = null;
 
@@ -137,6 +142,7 @@
 		prevHit = hit;
 		if (!opened) return;
 		activeTab = 'parameters';
+		selectedSpanId = null;
 		previousFocus = document.activeElement as HTMLElement | null;
 		queueMicrotask(() => dialogRef?.focus());
 	});
@@ -151,13 +157,22 @@
 		queueMicrotask(() => previousFocus?.focus());
 	}
 
+	function closeSpan(): void {
+		const closed = selectedSpanId;
+		selectedSpanId = null;
+		if (closed) queueMicrotask(() => document.getElementById(`span-btn-${closed}`)?.focus());
+	}
+
+	const focusOnCreate = (node: HTMLElement) => node.focus();
+
 	function handleKeydown(e: KeyboardEvent) {
 		if (!hit || e.key !== 'Escape') return;
 		e.preventDefault();
-		close();
+		if (selectedSpanId !== null) closeSpan();
+		else close();
 	}
 
-	async function shareLog() {
+	async function shareLog(): Promise<string | undefined> {
 		if (!hit || !store.fieldConfig) return;
 		const indexId = store.selectedIndex;
 		const startTime = store.resolvedStartTs;
@@ -179,16 +194,11 @@
 			toast.error('Share payload too large');
 			return;
 		}
-		sharing = true;
 		try {
 			const { code } = await createShare(sharePayload);
-			const url = `${window.location.origin}/s/${code}`;
-			await copyWithToast(url, 'Share link copied', 'Failed to copy share link');
+			return `${window.location.origin}/s/${code}`;
 		} catch (e) {
-			const msg = e instanceof ApiError ? e.message : 'Failed to create share';
-			toast.error(msg);
-		} finally {
-			sharing = false;
+			toast.error(e instanceof ApiError ? e.message : 'Failed to create share');
 		}
 	}
 
@@ -225,21 +235,19 @@
 {#snippet traceSummary()}
 	{#if traceId}
 		{@const id = traceId}
-		<button
-			type="button"
+		<CopyButton
+			text={id}
 			class="border-line bg-base-200/60 text-muted hover:bg-base-300 hover:text-base-content inline-flex h-7 items-center gap-1.5 rounded border px-2 text-xs transition-colors"
 			aria-label="Copy trace ID"
 			title={`Copy trace ID: ${id}`}
-			onclick={() => copyWithToast(id, 'Trace ID copied', 'Failed to copy trace ID')}
 		>
 			Trace ID
-			<Copy class="h-3 w-3" aria-hidden="true" />
-		</button>
+		</CopyButton>
 		<a
 			href={traceDetailHref(id, { index: store.selectedIndex, returnTo: page.url })}
 			class="btn btn-xs btn-primary ml-auto"
 		>
-			<ExternalLink class="h-3 w-3" aria-hidden="true" />
+			<ExternalLink class="size-3" aria-hidden="true" />
 			Open trace page
 		</a>
 	{/if}
@@ -256,9 +264,10 @@
 	<div
 		bind:this={dialogRef}
 		tabindex={-1}
-		class="border-line bg-base-100 fixed top-0 right-0 z-50 flex h-full max-w-full flex-col border-l shadow-2xl outline-none"
+		class="border-line bg-base-100 fixed top-0 right-0 z-50 flex h-full max-w-full flex-col border-l shadow-lg outline-none"
 		style="width: {widthPx}px"
 		role="dialog"
+		aria-modal="true"
 		aria-labelledby="log-detail-title"
 	>
 		<!-- Mouse-only affordance with no keyboard equivalent, so aria-hidden + tabindex="-1" is deliberate. -->
@@ -268,7 +277,7 @@
 			aria-hidden="true"
 			title="Drag to resize · double-click to reset"
 			class={[
-				'border-base-content/20 bg-base-100 text-base-content/60 hover:bg-base-200 hover:text-base-content absolute top-1/2 left-0 -ml-2 flex h-8 w-4 -translate-x-full -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-md border shadow-sm transition-colors',
+				'border-line bg-base-100 text-muted hover:bg-base-200 hover:text-base-content rounded-box absolute top-1/2 left-0 -ml-2 flex h-8 w-4 -translate-x-full -translate-y-1/2 cursor-ew-resize items-center justify-center border transition-colors',
 				dragging && 'bg-base-200 text-base-content'
 			]}
 			onpointerdown={handleHandlePointerDown}
@@ -277,17 +286,19 @@
 			onpointercancel={handleHandlePointerUp}
 			ondblclick={resetWidth}
 		>
-			<GripVertical class="h-3 w-3" />
+			<GripVertical class="size-3" aria-hidden="true" />
 		</button>
 
 		<DrawerHeader
 			{hit}
 			{activeTab}
-			{sharing}
 			{hasTraceback}
 			hasTrace={traceId !== null}
 			meta={traceSummary}
-			onTabChange={(t) => (activeTab = t)}
+			onTabChange={(t) => {
+				activeTab = t;
+				selectedSpanId = null;
+			}}
 			onShare={shareLog}
 			onClose={close}
 		/>
@@ -303,12 +314,58 @@
 			{:else if activeTab === 'traceback'}
 				<TracebackPane value={traceback} />
 			{:else if activeTab === 'trace'}
-				<TracePane
-					model={traceResource?.model ?? null}
-					loading={traceResource?.loading ?? true}
-					error={traceResource?.error ?? null}
-					onRetry={() => void traceResource?.load()}
-				/>
+				{#await traceLoad?.model}
+					<div role="status" class="flex h-full items-center justify-center">
+						<span class="loading loading-spinner loading-sm"></span>
+						<span class="sr-only">Loading trace</span>
+					</div>
+				{:then model}
+					{#if model}
+						{@const span = selectedSpanId ? model.byId.get(selectedSpanId) : undefined}
+						<TracePane
+							{model}
+							{selectedSpanId}
+							onSelectSpan={(id) => (selectedSpanId = id)}
+							onReload={() => traceId && loadTrace(traceId)}
+						/>
+						{#if span}
+							<!-- Positioned against the fixed dialog; the strip left uncovered keeps the drawer in view. -->
+							<div
+								tabindex="-1"
+								class="border-line bg-base-100 absolute inset-y-0 right-0 z-10 w-[88%] border-l shadow-lg outline-none"
+								aria-label="Span detail"
+								role="region"
+								{@attach focusOnCreate}
+							>
+								<SpanDetailPane
+									{span}
+									resources={model.resources}
+									traceStartMicros={model.traceStartMicros}
+									onSelectSpan={(id) => (selectedSpanId = id)}
+									onClose={closeSpan}
+									logsHref={null}
+								/>
+							</div>
+						{/if}
+					{/if}
+				{:catch e}
+					<div
+						role="alert"
+						class="flex h-full flex-col items-center justify-center gap-3 px-6 text-center"
+					>
+						<p class="text-warning-ink text-sm">
+							{e instanceof Error ? e.message : 'Failed to load trace'}
+						</p>
+						<button
+							type="button"
+							class="btn btn-sm btn-ghost gap-1.5"
+							onclick={() => traceId && loadTrace(traceId)}
+						>
+							<RotateCw class="size-3.5" aria-hidden="true" />
+							Try again
+						</button>
+					</div>
+				{/await}
 			{:else if activeTab === 'context'}
 				<ContextPane
 					{hit}
