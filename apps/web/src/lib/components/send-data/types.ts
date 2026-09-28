@@ -1,9 +1,9 @@
 import type { IconComponent } from '$lib/types';
+import type { HighlightLang } from '$lib/utils/code-highlight';
 
-export type SnippetLang = 'bash' | 'python' | 'javascript' | 'go' | 'yaml' | 'ini';
+export type SnippetLang = Exclude<HighlightLang, 'json'>;
 
-export type IntegrationOrigin =
-	'OpenTelemetry' | 'LogAgents' | 'WebServers' | 'Containers' | 'Application';
+export type IntegrationOrigin = 'Application' | 'Agents' | 'Infrastructure';
 
 export type Snippet = {
 	code: string;
@@ -17,11 +17,6 @@ export type Callout = {
 	html: string;
 };
 
-export type Verify = {
-	label: string;
-	href: string;
-};
-
 export type LinkOut = {
 	label: string;
 	href: string;
@@ -33,14 +28,12 @@ export type Step = {
 	linkOut?: LinkOut;
 	snippets?: Snippet[];
 	callout?: Callout;
-	verify?: Verify;
 };
 
 export type IntegrationContext = {
 	origin: string;
 	apiKey: string;
 	hasRealApiKey: boolean;
-	indexId: string;
 	flavor?: string;
 };
 

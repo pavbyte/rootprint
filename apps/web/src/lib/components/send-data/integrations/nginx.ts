@@ -1,9 +1,15 @@
 import NginxIcon from '@iconify-svelte/logos/nginx';
-import { searchVerifyLink, vectorOtlpSinkSnippet } from './_shared';
+import { vectorOtlpSnippet } from './_shared';
 import { highlightKey } from '../snippet-utils';
 import type { Integration } from '../types';
 
-const GROUP_ADD_COMMAND = 'sudo usermod -aG adm vector';
+const GROUP_ADD_COMMAND = `# Debian/Ubuntu: nginx logs belong to the adm group (the Vector package usually adds this)
+sudo usermod -aG adm vector
+
+# RHEL/Fedora/Amazon Linux: nginx logs are nginx:root 0640, so grant read access with ACLs
+sudo setfacl -m u:vector:rx /var/log/nginx
+sudo setfacl -m u:vector:r /var/log/nginx/*.log
+sudo setfacl -d -m u:vector:r /var/log/nginx`;
 
 const RESTART_COMMAND = `sudo systemctl restart vector
 sudo systemctl status vector`;
@@ -14,7 +20,7 @@ export const nginx: Integration = {
 	id: 'nginx',
 	label: 'Nginx',
 	icon: NginxIcon,
-	origin: 'WebServers',
+	origin: 'Infrastructure',
 	docs: 'https://docs.rootprint.io/send-logs/web-servers/nginx',
 	logs: {
 		buildSteps: (ctx) => {
@@ -26,7 +32,12 @@ export const nginx: Integration = {
       - /var/log/nginx/error.log
     read_from: end
 
-${vectorOtlpSinkSnippet({ ctx, inputs: 'nginx_logs' })}`;
+${vectorOtlpSnippet({
+	ctx,
+	inputs: 'nginx_logs',
+	serviceName: '"nginx"',
+	attribute: ['log.file.path', '.file']
+})}`;
 
 			return [
 				{
@@ -42,8 +53,8 @@ ${vectorOtlpSinkSnippet({ ctx, inputs: 'nginx_logs' })}`;
 				{
 					title: 'Write /etc/vector/vector.yaml',
 					body:
-						'Save this at /etc/vector/vector.yaml. The endpoint and API key are prefilled — ' +
-						'lines arrive in rootprint as raw log bodies; structured parsing is documented separately.',
+						'Save this at /etc/vector/vector.yaml. It includes your endpoint and ingest key. Lines ' +
+						'arrive in rootprint as raw log bodies; the docs cover structured parsing.',
 					snippets: [
 						{
 							code: vectorConfig,
@@ -61,17 +72,16 @@ ${vectorOtlpSinkSnippet({ ctx, inputs: 'nginx_logs' })}`;
 				},
 				{
 					title: 'Grant Vector log access and restart it',
-					body: 'Vector runs as its own user; add it to the adm group so it can read /var/log/nginx/*.',
+					body: 'Vector runs as its own user and needs read access to /var/log/nginx/*. Run the lines for your distro.',
 					snippets: [
-						{ code: GROUP_ADD_COMMAND, lang: 'bash', copyTitle: 'Copy group command' },
+						{ code: GROUP_ADD_COMMAND, lang: 'bash', copyTitle: 'Copy access commands' },
 						{ code: RESTART_COMMAND, lang: 'bash', copyTitle: 'Copy restart command' }
 					]
 				},
 				{
 					title: 'Send a test request',
 					body: 'A single curl is enough — Nginx writes the access line, Vector picks it up.',
-					snippets: [{ code: TEST_COMMAND, lang: 'bash', copyTitle: 'Copy test command' }],
-					verify: searchVerifyLink(ctx.indexId)
+					snippets: [{ code: TEST_COMMAND, lang: 'bash', copyTitle: 'Copy test command' }]
 				}
 			];
 		}

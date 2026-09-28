@@ -1,10 +1,5 @@
 import NodejsIcon from '@iconify-svelte/logos/nodejs-icon';
-import {
-	BEARER_CALLOUT,
-	CORRELATION_CALLOUT,
-	otelEnvVarsSnippet,
-	searchVerifyLink
-} from './_shared';
+import { BEARER_CALLOUT, correlationCallout, otelEnvVarsSnippet } from './_shared';
 import type { Integration, IntegrationContext, Step } from '../types';
 
 const OTEL_INSTALL =
@@ -22,7 +17,7 @@ const resource = defaultResource().merge(
 
 const provider = new LoggerProvider({
   resource,
-  processors: [new BatchLogRecordProcessor(new OTLPLogExporter())]
+  processors: [new BatchLogRecordProcessor({ exporter: new OTLPLogExporter() })]
 });
 
 logs.setGlobalLoggerProvider(provider);
@@ -59,7 +54,7 @@ const resource = defaultResource().merge(
 
 const provider = new LoggerProvider({
   resource,
-  processors: [new BatchLogRecordProcessor(new OTLPLogExporter())]
+  processors: [new BatchLogRecordProcessor({ exporter: new OTLPLogExporter() })]
 });
 
 logs.setGlobalLoggerProvider(provider);
@@ -86,15 +81,18 @@ const TRACES_INSTALL = 'npm install @opentelemetry/api @opentelemetry/auto-instr
 const TRACES_RUN_COMMAND =
 	'node --require @opentelemetry/auto-instrumentations-node/register app.js';
 
+const TRACES_RUN_COMMAND_ESM =
+	'node --experimental-loader=@opentelemetry/instrumentation/hook.mjs \\\n' +
+	'  --import @opentelemetry/auto-instrumentations-node/register app.js';
+
 function otelSteps(ctx: IntegrationContext): Step[] {
 	return [
 		{
 			title: 'Install and configure',
 			body:
-				'Reach for this only when your app has no logging library — it emits records through the ' +
-				'Logs Bridge API, which OpenTelemetry intends for logging-library authors rather than ' +
-				'applications. On Pino or Winston, use those tabs. Install the SDK and the protobuf log ' +
-				'exporter, then set the endpoint and API key via environment variables.',
+				'Use this when your app has no logging library: it emits records through the ' +
+				'OpenTelemetry Logs API. On Pino or Winston, use those tabs. Install the SDK and the ' +
+				'protobuf log exporter, then set the endpoint and ingest key in environment variables.',
 			snippets: [
 				{ code: OTEL_INSTALL, lang: 'bash', copyTitle: 'Copy install command' },
 				otelEnvVarsSnippet({ ctx, serviceName: 'my-node-service' })
@@ -103,10 +101,9 @@ function otelSteps(ctx: IntegrationContext): Step[] {
 		},
 		{
 			title: 'Send your first log',
-			body: 'Save this to a file and run it with Node 18+ (ESM).',
+			body: 'Save this as index.mjs and run it with node index.mjs on Node 22 or newer.',
 			snippets: [{ code: OTEL_EXAMPLE, lang: 'javascript', copyTitle: 'Copy example' }],
-			callout: PROTOBUF_CALLOUT,
-			verify: searchVerifyLink(ctx.indexId)
+			callout: PROTOBUF_CALLOUT
 		}
 	];
 }
@@ -127,8 +124,7 @@ function pinoSteps(ctx: IntegrationContext): Step[] {
 		{
 			title: 'Send your first log',
 			body: 'Wire the transport into a Pino logger and emit a record.',
-			snippets: [{ code: PINO_EXAMPLE, lang: 'javascript', copyTitle: 'Copy example' }],
-			verify: searchVerifyLink(ctx.indexId)
+			snippets: [{ code: PINO_EXAMPLE, lang: 'javascript', copyTitle: 'Copy example' }]
 		}
 	];
 }
@@ -150,8 +146,7 @@ function winstonSteps(ctx: IntegrationContext): Step[] {
 			title: 'Send your first log',
 			body: 'Wire the OTel transport into a Winston logger and emit a record.',
 			snippets: [{ code: WINSTON_EXAMPLE, lang: 'javascript', copyTitle: 'Copy example' }],
-			callout: PROTOBUF_CALLOUT,
-			verify: searchVerifyLink(ctx.indexId)
+			callout: PROTOBUF_CALLOUT
 		}
 	];
 }
@@ -185,8 +180,9 @@ export const nodejs: Integration = {
 			{
 				title: 'Install the auto-instrumentation package',
 				body:
-					'The register entrypoint starts the SDK and patches every supported library — http, ' +
-					'express, fastify, pg, redis and the rest — before your code loads.',
+					'The register entrypoint starts the SDK and patches supported libraries (http, ' +
+					'express, koa, pg, redis and more) before your code loads. Fastify apps add ' +
+					'@fastify/otel.',
 				snippets: [{ code: TRACES_INSTALL, lang: 'bash', copyTitle: 'Copy install command' }]
 			},
 			{
@@ -208,10 +204,17 @@ export const nodejs: Integration = {
 			{
 				title: 'Start your app with the register hook',
 				body:
-					'Use --import instead of --require if your entrypoint is ESM. Exercise a route and the ' +
-					'spans are batched and exported within a few seconds.',
-				snippets: [{ code: TRACES_RUN_COMMAND, lang: 'bash', copyTitle: 'Copy run command' }],
-				callout: CORRELATION_CALLOUT
+					'Use the second command if your entrypoint is ESM: its loader hook patches imported ' +
+					'modules. Exercise a route, and the SDK batches and exports the spans within a few ' +
+					'seconds.',
+				snippets: [
+					{ code: TRACES_RUN_COMMAND, lang: 'bash', copyTitle: 'Copy run command' },
+					{ code: TRACES_RUN_COMMAND_ESM, lang: 'bash', copyTitle: 'Copy ESM run command' }
+				],
+				callout: correlationCallout(
+					'On Winston, also set <code>OTEL_NODE_DISABLED_INSTRUMENTATIONS=winston</code>. ' +
+						'Without it, the hook adds a second transport and stores every line twice.'
+				)
 			}
 		]
 	}

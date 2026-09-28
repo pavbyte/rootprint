@@ -1,38 +1,28 @@
 import { OTLP_LOGS_INGEST_PATH, OTLP_TRACES_INGEST_PATH } from '../constants';
 import { highlightKey } from '../snippet-utils';
-import type { Callout, IntegrationContext, Signal, Snippet, Verify } from '../types';
-
-/** The standard "did my logs arrive?" verify step: a link into Logs scoped to the index. */
-export function searchVerifyLink(indexId: string): Verify {
-	return { label: 'Open Logs', href: `/logs?index=${encodeURIComponent(indexId)}` };
-}
+import type { Callout, IntegrationContext, Signal, Snippet } from '../types';
 
 export const BEARER_CALLOUT: Callout = {
 	variant: 'warning',
 	html:
-		'The <code>%20</code> after <code>Bearer</code> is required — OTLP expects ' +
-		'URL-encoded header values.'
+		'Keep the <code>%20</code> after <code>Bearer</code>: OTLP exporters URL-decode header ' +
+		'variables, and a literal space breaks the unquoted <code>export</code> line.'
 };
 
-/** Closes a language Traces tab: spans are only ever reached from a log, so say so. */
-export const CORRELATION_CALLOUT: Callout = {
-	variant: 'info',
-	html:
-		'Spans are reached from a log. Ship logs from this service too — see the ' +
-		'<a href="?signal=logs" class="link">Logs tab</a> — and rootprint pairs the two by ' +
-		'<code>trace_id</code>, so any log row opens its trace.'
-};
-
-/** The Collector and Kubernetes variant: one exporter, both signals. */
-export const COLLECTOR_CORRELATION_CALLOUT: Callout = {
-	variant: 'info',
-	html:
-		'One <code>otlphttp</code> exporter carries both signals — keep <code>logs_endpoint</code> ' +
-		'and <code>traces_endpoint</code> side by side and declare both pipelines. The ' +
-		'<a href="?signal=logs" class="link">Logs tab</a> has the logs half — pairing by ' +
-		'<code>trace_id</code> works once the application’s own log records carry trace context ' +
-		'(e.g. an OTel log appender), not for tailed stdout/file lines.'
-};
+/**
+ * Closes a language Traces tab: a log row opens its trace only when the service ships both.
+ * `caveat` is the language's trap that would leave rows unpaired or doubled.
+ */
+export function correlationCallout(caveat = ''): Callout {
+	return {
+		variant: 'info',
+		html:
+			'Ship this service’s logs too (the <a href="?signal=logs" class="link">Logs tab</a> ' +
+			'shows how). rootprint pairs logs and spans by <code>trace_id</code>, so you can open ' +
+			'the trace from any log written inside a span.' +
+			(caveat && ` ${caveat}`)
+	};
+}
 
 export function otelEnvVarsSnippet({
 	ctx,
@@ -72,17 +62,43 @@ export function otelEnvVarsSnippet({
 	};
 }
 
-export function vectorOtlpSinkSnippet({
+/**
+ * Vector's `otlp` codec drops any event not already shaped as OTLP, so a remap builds the
+ * `resourceLogs` envelope before the sink.
+ */
+export function vectorOtlpSnippet({
 	ctx,
-	inputs
+	inputs,
+	serviceName,
+	attribute: [attributeKey, attributeExpr]
 }: {
 	ctx: IntegrationContext;
 	inputs: string;
+	/** VRL expression for `service.name`. */
+	serviceName: string;
+	/** A log-record attribute: its key and the VRL expression that fills it. */
+	attribute: [string, string];
 }): string {
-	return `sinks:
+	return `transforms:
+  to_otlp:
+    type: remap
+    inputs: [${inputs}]
+    source: |
+      .resourceLogs = [{
+        "resource": { "attributes": [
+          { "key": "service.name", "value": { "stringValue": ${serviceName} } }
+        ]},
+        "scopeLogs": [{ "logRecords": [{
+          "timeUnixNano": to_unix_timestamp(timestamp(.timestamp) ?? now(), unit: "nanoseconds"),
+          "body": { "stringValue": string(.message) ?? "" },
+          "attributes": [{ "key": "${attributeKey}", "value": { "stringValue": string(${attributeExpr}) ?? "" } }]
+        }]}]
+      }]
+
+sinks:
   rootprint:
     type: opentelemetry
-    inputs: [${inputs}]
+    inputs: [to_otlp]
     protocol:
       type: http
       uri: ${ctx.origin}${OTLP_LOGS_INGEST_PATH}
