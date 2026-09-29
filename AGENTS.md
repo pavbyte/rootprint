@@ -17,7 +17,7 @@ Rootprint is a Bun-workspace monorepo. Workspaces live under `apps/`. The Hono b
 
 - Toolchain and root scripts: `package.json`.
 - Formatting: `.prettierrc`.
-- TS base config: `tsconfig.base.json` (every workspace extends it).
+- TS base config: `tsconfig.base.json` (`apps/api` extends it; `apps/web` extends the generated `.svelte-kit/tsconfig.json`).
 - CI: `.github/workflows/ci.yml`.
 - Stack-specific rules: each workspace's `AGENTS.md`.
 
@@ -35,8 +35,8 @@ Root convenience scripts: `dev:api`, `build:api`, `start:api`, `check`, `lint`, 
 
 ## Shared Rules (all workspaces)
 
-- Bun only. Engine-strict (`bun >= 1.0.0`). Do not use npm/pnpm/yarn.
-- TypeScript is strict. Every workspace extends `tsconfig.base.json`. Avoid `any` unless unavoidable.
+- Bun only, at the version pinned by `packageManager` in `package.json`. Do not use npm/pnpm/yarn.
+- TypeScript is strict in every workspace. Avoid `any` unless unavoidable.
 - Prettier config is at the repo root: tabs, single quotes, no trailing commas, line width ~100.
 - Automated tests cover authentication only. `apps/api/tests/` runs with `bun --filter api test`. Any change to sign-in, sessions, API keys, invites, provider settings or boot must add or update a scenario there. Do not add tests for other areas unless asked.
 - The suite needs the shared infrastructure running: `docker compose up -d --wait db quickwit`.
@@ -49,6 +49,7 @@ bun --filter '*' check
 bun run lint
 bun run format:check
 bun --filter api build
+bun --filter web build
 bun --filter api test
 ```
 
@@ -99,7 +100,7 @@ bun --filter api db:studio       # open Drizzle Studio
 ## Error Handling Conventions
 
 - `apps/api`: throw `HttpError` from `src/utils/http-error.ts`; the central `app.onError` translates it to JSON or OTLP. Never return raw 500s with internals.
-- `apps/web` (when wired up): use SvelteKit `error(status, message)` and `redirect(...)`; validate form input with Valibot.
+- `apps/web`: loaders let errors bubble and call `error(...)` only for a meaningful status (see `apps/web/AGENTS.md` → Error handling); `redirect(...)` for route guards. Validate form input with Valibot.
 - Do not silently swallow errors unless fallback behavior is intentional.
 
 ## Cursor and Copilot Rules

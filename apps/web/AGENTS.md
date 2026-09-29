@@ -14,7 +14,7 @@ For repo-wide rules (Bun, Prettier, TS strict, tests policy), see the root `AGEN
 - DaisyUI 5 (custom `rootprint` theme — see Design System below)
 - Better Auth client + Hono RPC client
 - Valibot for client-side validation (schemas re-exported from `api/schemas`)
-- `lucide-svelte` icons; `@iconify-svelte/logos` for third-party brand marks only
+- `lucide-svelte` icons; `@iconify-svelte/logos` and `@iconify-svelte/simple-icons` for third-party brand marks only
 - `svelte-sonner` toasts, `uplot` charts (through `ui/uplot`), `shiki` code highlighting
 
 ## Run, Build, Check
@@ -177,7 +177,7 @@ Use semantic classes (`bg-base-100`, `text-muted`, `btn-primary`, …), never ra
 
 ### Icons
 
-- `lucide-svelte` only. `@iconify-svelte/logos` is for third-party brand marks (integration logos), never for UI icons.
+- `lucide-svelte` only. `@iconify-svelte/logos` is for third-party brand marks (integration logos), never for UI icons; `@iconify-svelte/simple-icons` covers a mark `logos` lacks (Fluent Bit).
 - Size with a `size-*` class, not the `size` prop: `size-3.5` by default, `size-3` inside `btn-xs`, table headers and dense rows, `size-4` for primary navigation (app sidebar, settings nav, help menu). Larger only for empty-state art and brand logos.
 - Icons inherit text color. Tone them with `text-muted`/`text-subtle`, not opacity.
 - Decorative icons get `aria-hidden="true"`. Icon-only buttons get an `aria-label` and a matching `title`.
@@ -276,7 +276,7 @@ No automated tests in this workspace. Authentication is covered by the API suite
 
 ## Conventions
 
-- TS strict (extends `tsconfig.base.json`).
+- TS strict, set in `tsconfig.json` (it extends the generated `.svelte-kit/tsconfig.json`, not `tsconfig.base.json`).
 - Single quotes, tabs, no trailing commas (Prettier).
 - `prettier-plugin-svelte` + `prettier-plugin-tailwindcss` normalize Svelte files and class-attribute order — let them.
 - Use SvelteKit aliases (`$lib`, `$app`, `$env`) over deep relative paths.
