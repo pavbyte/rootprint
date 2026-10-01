@@ -21,7 +21,7 @@ Rootprint uses Bun as its package manager and runtime.
 
 Prerequisites:
 
-- Bun `>= 1.0.0`
+- Bun `1.4.0` (the version pinned by `packageManager` in `package.json`)
 - Docker with Compose support
 - Git
 
@@ -32,7 +32,8 @@ bun install
 cp .env.example .env
 docker compose up -d db quickwit
 bun --filter api db:migrate
-bun run dev:api        # or: bun --filter <workspace> dev
+bun run dev:api
+bun run dev:web
 ```
 
 Notes:
@@ -42,15 +43,15 @@ Notes:
 
 ## Repository layout
 
-- `apps/api/` - Hono backend (logs ingest, search proxy, auth)
-- `apps/web/` - SvelteKit log viewer UI
+- `apps/api/` - Hono API: ingest, search proxy, auth, admin operations
+- `apps/web/` - SvelteKit SPA: Logs, Traces, Services, Send data and Settings
 
 ## Development guidelines
 
 - Use TypeScript with strict typing. Avoid `any` unless unavoidable.
 - Backend types: `apps/api/src/types.ts`. Frontend types: `apps/web/src/lib/types.ts`.
 - Backend routes follow the Hono pattern in `apps/api/src/routes/*.ts`. Service logic in `apps/api/src/services/*.service.ts`.
-- This project does not use automated tests in any workspace. Verify changes manually.
+- Automated tests cover authentication only, in `apps/api/tests/`. Changes to sign-in, sessions, API keys, invites, provider settings or boot must add or update a test there. Verify other changes manually.
 - Match the existing code style:
   - tabs for indentation
   - single quotes
@@ -92,9 +93,14 @@ Run the same core checks that CI runs:
 
 ```bash
 bun --filter '*' check
+bun run lint
 bun run format:check
 bun --filter api build
+bun --filter web build
+bun --filter api test
 ```
+
+`bun --filter api test` needs `docker compose up -d --wait db quickwit`.
 
 ## Pull request expectations
 

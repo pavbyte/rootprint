@@ -6,37 +6,64 @@ A release's optional `### Highlights` bullets (plain text, written for users) ar
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-10-01
+
+### Highlights
+
+- **Trace explorer.** Chart span volume, error rate and latency, find the busiest operations, and filter spans by service, operation, duration and status.
+- **Service pages.** Every service has its own page with Overview, Operations, Dependencies and Errors tabs, each linking to the matching traces.
+- **Trace pages** gain span search and a Database tab that groups a trace's database calls by query.
+- **Paste a trace ID** into the Logs search to open the trace.
+- **Send data guides** start with your ingest key and end in Logs or the trace explorer.
+
 ### ⚠️ Breaking
 
-- **The Services API moved from `/api/monitoring` to `/api/services`.** `GET /api/monitoring/services` is now `GET /api/services`, and `GET /api/monitoring/errors` is now `GET /api/services/errors`. The old paths return `404`. Responses keep their shape, but the OpenAPI schema names drop the `Monitoring` prefix (`MonitoringSummary` is now `ServiceHealthSummary`) and the endpoints move from the `Monitoring` tag to `Services`.
-- **`GET /api/services` returns `endpoints: []` without `service`.** Pass `service` for a service's operations; the response shape is unchanged.
+- **The Services API moved from `/api/monitoring` to `/api/services`.** `GET /api/monitoring/services` is now `GET /api/services`, and `GET /api/monitoring/errors` is now `GET /api/services/errors`. The old paths return `404`. The OpenAPI schema names drop the `Monitoring` prefix (`MonitoringSummary` is now `ServiceHealthSummary`), and the endpoints move from the `Monitoring` tag to `Services`. ([#146](https://github.com/rootprint/rootprint/pull/146))
+- **`GET /api/services` returns `endpoints: []` without `service`,** and ignores `endpointLimit`. Pass `service` for a service's operations. ([#145](https://github.com/rootprint/rootprint/pull/145))
 
 ### Added
 
-- **GitHub** link in the sidebar, below Help, with the repository's star count. The count is baked in when the image is built, so the app never contacts GitHub.
-- **Service pages.** Each service has its own page at `/services/<name>` with Overview, Operations, Dependencies and Errors tabs. Operations and dependencies link to matching traces.
-- **Error rate per operation** on a service's Operations tab.
+- **Trace explorer** at `/traces`. Span, error-rate and p50/p95/p99 latency charts, the 200 busiest operations, and a span list sortable by start time or duration. Filters: service, operation, minimum and maximum duration, status, root spans only, and a Quickwit query.([#119](https://github.com/rootprint/rootprint/pull/119), [#150](https://github.com/rootprint/rootprint/pull/150))
+- **Service pages** at `/services/<name>`, with Overview, Operations, Dependencies and Errors tabs. Operations show their error rate. Operations, dependencies and errors open the matching spans in the trace explorer. ([#126](https://github.com/rootprint/rootprint/pull/126), [#138](https://github.com/rootprint/rootprint/pull/138))
+- **Span search on trace pages** by service, name, span ID or attribute, with a match count ([#120](https://github.com/rootprint/rootprint/pull/120))
+- **Database tab on trace pages.** A trace's database calls, grouped by target and statement, with call counts, durations and failures. ([#121](https://github.com/rootprint/rootprint/pull/121))
+- **Trace IDs open their trace.** A 32-character hex ID typed into the Logs or trace explorer search opens the trace when it has spans, and is searched as text otherwise. ([#126](https://github.com/rootprint/rootprint/pull/126), [#127](https://github.com/rootprint/rootprint/pull/127))
+- **What's new.** A release's highlights appear once in the sidebar and stay under **Help → What's new**. ([#135](https://github.com/rootprint/rootprint/pull/135))
+- **GitHub** link in the sidebar, below Help, with the repository's star count. ([#134](https://github.com/rootprint/rootprint/pull/134))
+- **`GET /api/services` endpoint rows gain `errors`, `operation` and `query`**, and `endpointLimit=0` skips the endpoint searches. ([#126](https://github.com/rootprint/rootprint/pull/126), [#138](https://github.com/rootprint/rootprint/pull/138))
+- **`GET /api/traces/{traceId}` reports the instrumentation scope** as the `otel.scope.name` and `otel.scope.version` span attributes. ([#120](https://github.com/rootprint/rootprint/pull/120))
 
 ### Changed
 
-- **Search is now Logs, at `/logs`; Services moved to `/services`.** `/` and `/monitoring` redirect and keep their query string, so bookmarked searches still open.
-- **Profile moved to the user menu**, at `/profile`.
-- **Send data** (formerly **Settings → Send logs & traces**) is a sidebar entry for admins, at `/send-data`.
-- **Send data guides start with the ingest key.** You pick or create the key in step 1, and the snippets use it. The last step opens Logs or the trace explorer, and the catalog groups the nine integrations by kind.
-- **Settings is admin-only.** Members no longer see it in the sidebar.
-- **Services counts consumer and root spans as requests**, not only server spans, so queue workers and scheduled jobs appear. `GET /api/services` numbers change accordingly; its response shape does not.
-- **The Services catalog is a sortable table**, worst error rate first, below the summary and charts. Links to `/services?service=<name>` redirect to the service's page.
-- **The Quickwit client is now `@rootprint-io/quickwit-js` 0.5**, the renamed `quickwit-js`. Every search now goes to Quickwit as a POST.
+- **Search is now Logs, at `/logs`; Services moved to `/services`.** `/` and `/monitoring` redirect and keep their query string, so bookmarked searches still open. Links to `/services?service=<name>` redirect to the service's page. ([#133](https://github.com/rootprint/rootprint/pull/133), [#138](https://github.com/rootprint/rootprint/pull/138))
+- **Profile moved to the user menu**, at `/profile`. ([#133](https://github.com/rootprint/rootprint/pull/133))
+- **Send data** (formerly **Settings → Send logs & traces**) is a sidebar entry for admins, below Services, at `/send-data`. ([#133](https://github.com/rootprint/rootprint/pull/133), [#136](https://github.com/rootprint/rootprint/pull/136))
+- **Settings is admin-only.** Members no longer see it in the sidebar. ([#137](https://github.com/rootprint/rootprint/pull/137))
+- **Send data guides start with the ingest key.** You pick or create the key in step 1, and the snippets use it. The last step opens Logs or the trace explorer, and the catalog groups the nine integrations by kind. ([#137](https://github.com/rootprint/rootprint/pull/137))
+- **Services counts consumer and root spans as requests**, not only server spans, so queue workers and scheduled jobs appear. `GET /api/services` numbers change accordingly. ([#138](https://github.com/rootprint/rootprint/pull/138))
+- **The Services catalog is a sortable table**, worst error rate first, below the summary and charts. ([#138](https://github.com/rootprint/rootprint/pull/138))
+- **Latency percentiles read half a millisecond higher.** Quickwit stores span durations in whole milliseconds, so `p50`, `p95` and `avg` in `GET /api/services` now report the midpoint of that millisecond. A sub-millisecond operation shows `<1 ms` instead of `0 ms`. ([#130](https://github.com/rootprint/rootprint/pull/130))
+- **Text exports contain only timestamp, level and message**, as `<ISO 8601 time> [<level>] <message>`. Other fields are no longer appended; export JSON or CSV for those. Epoch timestamps in seconds through nanoseconds are converted, and nested timestamp, level and message fields are read. ([#149](https://github.com/rootprint/rootprint/pull/149))
+- **Large traces show their earliest spans.** A trace with more than 2,000 spans keeps the first 2,000 by start time. Trace pages show the root service and start time. ([#120](https://github.com/rootprint/rootprint/pull/120))
+- **Durations, counts, rates and timestamps use one format on every page.** Short spans show microseconds, operation rates are per minute, timestamps are numeric with milliseconds, and charts spanning several days label the date. ([#130](https://github.com/rootprint/rootprint/pull/130), [#131](https://github.com/rootprint/rootprint/pull/131))
+- **Index and source settings forms show errors inline** and scroll them into view. ([#140](https://github.com/rootprint/rootprint/pull/140))
+- **The Quickwit client is now `@rootprint-io/quickwit-js` 0.5**, the renamed `quickwit-js`. Every search now goes to Quickwit as a POST. ([#141](https://github.com/rootprint/rootprint/pull/141))
+- **Quickwit 0.9.1** in `docker-compose.yml`, a security patch release. If you run your own Quickwit, upgrade it to 0.9.1.
+- Updated dependencies, including Better Auth 1.7.6, Hono 4.13.9, Svelte 5.57.1, Vite 8.3.1 and daisyUI 5.7.46. ([#143](https://github.com/rootprint/rootprint/pull/143))
 
 ### Removed
 
-- **Cross-service Endpoints and Errors tabs** on Services. Use the trace explorer's Operations tab, or a service's Errors tab.
+- **Cross-service Endpoints and Errors tabs** on Services. Use the trace explorer's Operations tab, or a service's Errors tab. ([#138](https://github.com/rootprint/rootprint/pull/138))
+- **Integration search** on the Send data page. ([#137](https://github.com/rootprint/rootprint/pull/137))
 
 ### Fixed
 
-- **`GET /api/services/errors` returns an empty list when the span store is missing**, as the other trace endpoints do, instead of `404`.
-- **Log API calls with a fractional `endTs` no longer drop the last partial second.** The log search, histogram, field, field-values and export endpoints now round `endTs` up to the next whole second instead of truncating it. The web app always sends whole seconds and was not affected.
-- **Send data guides deliver data as written.** Logs arrive with a service name and keep their own severity, and the snippets use current component names and APIs. The guides offer ingest keys on `otel-` indexes and hide the rest: Quickwit answers 200 to OTLP logs sent to any other index and discards them.
+- **`503` responses keep their message and send `Retry-After: 5`.** An unreachable Quickwit `/metrics` endpoint returned `Internal server error` with no retry hint, and its message no longer includes Quickwit's URL. ([#132](https://github.com/rootprint/rootprint/pull/132))
+- **`GET /api/services/errors` returns an empty list when the span store is missing**, as the other trace endpoints do, instead of `404`. ([#146](https://github.com/rootprint/rootprint/pull/146))
+- **`durationMillis` in `GET /api/services/errors` is no longer `0` for sub-millisecond spans.** It comes from the span's timestamps.
+- **Log API calls with a fractional `endTs` no longer drop the last partial second.** The log search, histogram, field, field-values and export endpoints round `endTs` up to the next whole second instead of truncating it. The web app always sends whole seconds and was not affected. ([#142](https://github.com/rootprint/rootprint/pull/142))
+- **The log histogram adds up levels that differ only in case**, such as `info` and `INFO`, instead of showing one of them. ([#129](https://github.com/rootprint/rootprint/pull/129))
+- **Send data guides deliver data as written.** Logs arrive with a service name and keep their own severity, and the snippets use current component names and APIs. The guides offer only ingest keys on `otel-` indexes: Quickwit answers 200 to OTLP logs sent to any other index and discards them. ([#137](https://github.com/rootprint/rootprint/pull/137))
 
 ## [0.4.4] - 2026-09-22
 

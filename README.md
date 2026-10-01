@@ -9,40 +9,50 @@
 
 ### [Live demo](https://demo.rootprint.io) &nbsp;·&nbsp; [Quick start](#quick-start) &nbsp;·&nbsp; [Docs](https://docs.rootprint.io) &nbsp;·&nbsp; [Contributing](CONTRIBUTING.md) &nbsp;·&nbsp; [Changelog](CHANGELOG.md)
 
-Open-source, self-hosted logs and traces with full-text search on object-storage-backed indexes.
+Open-source, self-hosted logs and traces with full-text search directly on S3-compatible object storage.
 
-Rootprint gives engineering teams a focused log explorer, trace waterfalls, a service health
-dashboard, OpenTelemetry ingestion, and team access control, without sending
-telemetry to a hosted SaaS.
+Rootprint is open-source log and trace search that runs on your own object storage. Built on
+Quickwit, it indexes the full text of every log, so you can find any line without designing labels
+first. Indexes live in your S3, GCS, R2, MinIO or Azure Blob bucket, so a year of retention costs a
+year of storage. Send data over OpenTelemetry, open a trace from any log, and see request rate,
+errors and p95 latency for every service.
 
 > [!TIP]
 > **Try it now at [demo.rootprint.io](https://demo.rootprint.io)** - live OpenTelemetry logs and
-> traces from a running demo cluster. Read-only, no signup, nothing to install.
+> traces from a running demo cluster.
 
-[![Rootprint log explorer](.github/assets/clean-explorer.png)](https://demo.rootprint.io)
+[![Rootprint Logs page](.github/assets/logs.webp)](https://demo.rootprint.io)
 
 ## What You Get
 
-- **Search on object storage** - Query indexes stored on S3, MinIO, R2, GCS, Azure Blob, or local
-  disk.
-- **Open ingestion** - Send logs and traces through OTLP Protobuf or HTTP from the
-  OpenTelemetry Collector, Vector, Fluent Bit, or any other OTLP-compatible source.
-- **Log explorer** - Severity-aware rows, a frequency histogram, field discovery with pinning,
-  query autocomplete, saved views, detail drawers, share links, and result exports.
-- **Traces** - Open a trace from any log, or paste a trace ID into the search box. The waterfall
-  shows per-span timing, attributes, and events, and every span links back to its logs.
-- **Service health** - Request rate, error rate, and p95 latency per service, endpoints ranked by
-  time spent, outbound dependencies, and a filterable list of failing spans.
-- **Team access** - Invite users, manage roles, create scoped ingest keys, service accounts, and
-  personal API keys, and enable Google, GitHub, or any OpenID Connect provider for SSO
-- **Admin controls** - Manage indexes, sources, field configuration, activity, and Quickwit.
-- **Open source** - Apache-2.0 licensed.
+- **Find any line** - Every word of every log is indexed, so you can search without knowing the
+  service, stream or label. Save views, share links, and export to NDJSON, CSV or text.
+- **Your bucket is the database** - Indexes live in your S3, GCS, R2, MinIO or Azure Blob bucket,
+  and the whole stack is three containers: Rootprint, Quickwit and Postgres.
+- **Logs and traces, one place** - Open a trace from any log, and the logs behind any span.
+- **OpenTelemetry ingestion** - OTLP from any collector or SDK, plus NDJSON, Kafka, Kinesis and SQS.
+- **Team access** - Roles, scoped API keys, and sign-in with Google, GitHub or OpenID Connect.
+- **Admin controls** - Manage indexes, sources, field configuration and activity.
+- **Apache-2.0** licensed.
 
-## Traces and Service Health
+## Traces
 
-|                                 Trace waterfall                                 |                                  Service health                                   |
-| :-----------------------------------------------------------------------------: | :-------------------------------------------------------------------------------: |
-| [![Trace waterfall](.github/assets/clean-trace.png)](https://demo.rootprint.io) | [![Service health](.github/assets/clean-services.png)](https://demo.rootprint.io) |
+Search spans across every trace by service, operation, duration and status, and chart their volume,
+error rate and latency. Open any trace as a waterfall, and jump from a span to the logs it produced.
+
+[![The Rootprint trace explorer](.github/assets/traces.webp)](https://demo.rootprint.io)
+
+Learn more: [Trace explorer](https://docs.rootprint.io/traces/search) ·
+[Read a trace](https://docs.rootprint.io/traces/explore)
+
+## Services
+
+Request rate, error rate and p95 latency for every service, built from the spans you already send.
+Open a service to see its operations, dependencies and errors.
+
+[![The Rootprint Services catalog](.github/assets/services.webp)](https://demo.rootprint.io)
+
+Learn more: [Service health](https://docs.rootprint.io/traces/services)
 
 ## Quick Start
 
@@ -51,59 +61,27 @@ curl -o docker-compose.yml https://docs.rootprint.io/files/docker-compose.full.y
 docker compose up -d
 ```
 
-Open:
-
-```text
-http://localhost:8282
-```
-
-Then:
+Open http://localhost:8282, then:
 
 1. Create the first admin account.
-2. Create an ingest key in **Settings -> API keys**.
-3. Send logs to the bundled OpenTelemetry index (`otel-logs-v0_9`). The same key ships spans to
-   `POST /v1/traces`.
-4. Search them from the Rootprint UI.
+2. Open **Send data** and follow the guide for your source. Its first step creates your ingest key.
+3. Search your logs in **Logs** and your spans in **Traces**.
 
 Full install guide: https://docs.rootprint.io/install/docker-compose
 
 ## Documentation
 
-- Live demo: https://demo.rootprint.io
-- Docs: https://docs.rootprint.io
-- Quickstart: https://docs.rootprint.io/quickstart
-- Send logs: https://docs.rootprint.io/send-logs/overview
-- Traces: https://docs.rootprint.io/traces/overview
-- Service health: https://docs.rootprint.io/traces/services
-- API reference: https://docs.rootprint.io/api/overview
-- Query syntax: https://docs.rootprint.io/search/query-language
+- [Quickstart](https://docs.rootprint.io/quickstart)
+- [Send logs](https://docs.rootprint.io/send-logs/overview)
+- [Send traces](https://docs.rootprint.io/traces/send)
+- [Query syntax](https://docs.rootprint.io/search/query-language)
+- [Configuration](https://docs.rootprint.io/configuration/environment-variables)
+- [API reference](https://docs.rootprint.io/api/overview)
 
-## Repository Layout
+## Contributing
 
-```text
-apps/api   Hono API: ingest, search proxy, auth, admin operations
-apps/web   SvelteKit SPA: log explorer, traces, service health, and administration UI
-```
-
-## Local Development
-
-```bash
-bun install
-cp .env.example .env
-docker compose up -d db quickwit
-bun --filter api db:migrate
-bun run dev:api
-bun run dev:web
-```
-
-Common checks:
-
-```bash
-bun --filter '*' check
-bun run lint
-bun run format:check
-bun --filter api build
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, the repository layout and the checks to run
+before opening a pull request.
 
 ## Status
 

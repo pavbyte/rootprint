@@ -54,6 +54,23 @@ function prefixedAuthPaths(paths: Record<string, PathItemObject>): Record<string
 	return Object.fromEntries(Object.entries(paths).map(([p, item]) => [`/api/auth${p}`, item]));
 }
 
+type ParameterObject = { schema?: { type?: unknown; default?: unknown } };
+
+// Integer query params validate as digit strings, so their defaults come through as the raw
+// pre-transform string; publish them as numbers to match the schema's output type.
+function numericParamDefaults(paths: Record<string, PathItemObject>): void {
+	for (const item of Object.values(paths)) {
+		for (const op of Object.values(item)) {
+			const params = (op as { parameters?: ParameterObject[] } | undefined)?.parameters ?? [];
+			for (const { schema } of params) {
+				if (schema?.type === 'integer' && typeof schema.default === 'string') {
+					schema.default = Number(schema.default);
+				}
+			}
+		}
+	}
+}
+
 export async function buildSpec<E extends Env, S extends Schema, P extends string>(
 	app: Hono<E, S, P>
 ) {
@@ -64,6 +81,7 @@ export async function buildSpec<E extends Env, S extends Schema, P extends strin
 	const authPaths = decorateAuthPaths(
 		prefixedAuthPaths(authSpec.paths as Record<string, PathItemObject>)
 	);
+	numericParamDefaults(spec.paths as Record<string, PathItemObject>);
 
 	return {
 		...spec,

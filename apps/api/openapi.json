@@ -3480,7 +3480,7 @@
 	"info": {
 		"description": "HTTP API for the Rootprint log management platform.",
 		"title": "Rootprint API",
-		"version": "0.4.4"
+		"version": "0.4.5"
 	},
 	"openapi": "3.1.0",
 	"paths": {
@@ -3578,7 +3578,7 @@
 						"in": "query",
 						"name": "offset",
 						"schema": {
-							"default": "0",
+							"default": 0,
 							"minimum": 0,
 							"pattern": "^\\d+$",
 							"type": "integer"
@@ -3588,7 +3588,7 @@
 						"in": "query",
 						"name": "limit",
 						"schema": {
-							"default": "100",
+							"default": 100,
 							"maximum": 500,
 							"minimum": 1,
 							"pattern": "^\\d+$",
@@ -3901,7 +3901,7 @@
 						"in": "query",
 						"name": "limit",
 						"schema": {
-							"default": "10",
+							"default": 10,
 							"maximum": 50,
 							"minimum": 1,
 							"pattern": "^\\d+$",
@@ -4107,7 +4107,7 @@
 						"in": "query",
 						"name": "offset",
 						"schema": {
-							"default": "0",
+							"default": 0,
 							"minimum": 0,
 							"pattern": "^\\d+$",
 							"type": "integer"
@@ -4117,7 +4117,7 @@
 						"in": "query",
 						"name": "limit",
 						"schema": {
-							"default": "100",
+							"default": 100,
 							"maximum": 500,
 							"minimum": 1,
 							"pattern": "^\\d+$",
@@ -14510,7 +14510,7 @@
 						"in": "query",
 						"name": "limit",
 						"schema": {
-							"default": "5000",
+							"default": 5000,
 							"maximum": 10000,
 							"minimum": 1,
 							"pattern": "^\\d+$",
@@ -15268,7 +15268,7 @@
 						"in": "query",
 						"name": "endpointLimit",
 						"schema": {
-							"default": "10",
+							"default": 10,
 							"maximum": 100,
 							"minimum": 0,
 							"pattern": "^\\d+$",
@@ -15397,7 +15397,7 @@
 						"in": "query",
 						"name": "limit",
 						"schema": {
-							"default": "50",
+							"default": 50,
 							"maximum": 100,
 							"minimum": 1,
 							"pattern": "^\\d+$",
@@ -15408,7 +15408,7 @@
 						"in": "query",
 						"name": "offset",
 						"schema": {
-							"default": "0",
+							"default": 0,
 							"maximum": 5000,
 							"minimum": 0,
 							"pattern": "^\\d+$",
@@ -16421,7 +16421,7 @@
 						"in": "query",
 						"name": "limit",
 						"schema": {
-							"default": "50",
+							"default": 50,
 							"maximum": 100,
 							"minimum": 1,
 							"pattern": "^\\d+$",
@@ -16432,7 +16432,7 @@
 						"in": "query",
 						"name": "offset",
 						"schema": {
-							"default": "0",
+							"default": 0,
 							"maximum": 10000,
 							"minimum": 0,
 							"pattern": "^\\d+$",
