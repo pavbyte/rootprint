@@ -35,24 +35,35 @@ function formatScalar(v: unknown): string {
 	}
 }
 
+function getPath(obj: unknown, path: string): unknown {
+	if (obj === null || typeof obj !== 'object') return undefined;
+	const record = obj as Record<string, unknown>;
+	if (Object.hasOwn(record, path)) return record[path];
+	for (let dot = path.indexOf('.'); dot !== -1; dot = path.indexOf('.', dot + 1)) {
+		const head = path.slice(0, dot);
+		if (Object.hasOwn(record, head)) {
+			const result = getPath(record[head], path.slice(dot + 1));
+			if (result !== undefined) return result;
+		}
+	}
+	return undefined;
+}
+
+function formatTimestamp(v: unknown): string {
+	if (typeof v !== 'number') return formatScalar(v);
+	// Quickwit emits the index's configured unit; for any date after 1973 the magnitude alone
+	// tells seconds, milliseconds, microseconds and nanoseconds apart.
+	const ms = v < 1e11 ? v * 1e3 : v < 1e14 ? v : v < 1e17 ? v / 1e3 : v / 1e6;
+	return new Date(ms).toISOString();
+}
+
 function formatTextBatch(rows: Record<string, unknown>[], cfg: IndexConfig): Uint8Array {
-	const exclude = new Set([cfg.timestampField, cfg.levelField, cfg.messageField]);
 	let out = '';
 	for (const row of rows) {
-		const ts = formatScalar(row[cfg.timestampField]);
-		const level = formatScalar(row[cfg.levelField] ?? 'unknown');
-		const message = formatScalar(row[cfg.messageField]);
-
-		const extras: string[] = [];
-		for (const [k, v] of Object.entries(row)) {
-			if (exclude.has(k)) continue;
-			extras.push(`${k}=${formatScalar(v)}`);
-		}
-
-		const parts: string[] = [ts, `[${level}]`];
-		if (extras.length > 0) parts.push(extras.join(' '));
-		parts.push(message);
-		out += parts.join(' ') + NEWLINE;
+		const ts = formatTimestamp(getPath(row, cfg.timestampField));
+		const level = formatScalar(getPath(row, cfg.levelField) ?? 'unknown');
+		const message = formatScalar(getPath(row, cfg.messageField));
+		out += `${ts} [${level}] ${message}${NEWLINE}`;
 	}
 	return TEXT_ENCODER.encode(out);
 }
